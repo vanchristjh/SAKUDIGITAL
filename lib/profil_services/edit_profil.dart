@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EditProfil extends StatefulWidget {
-  const EditProfil({Key? key}) : super(key: key);
+  const EditProfil({super.key});
 
   @override
   _EditProfilState createState() => _EditProfilState();
