@@ -70,7 +70,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       appBar: AppBar(
         backgroundColor: Colors.deepPurple,
         elevation: 0,
-        title: const Text('Forgot Password', style: TextStyle(color: Colors.white)),
+        title: const Text('Forgot Password',
+            style: TextStyle(color: Colors.white)),
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -107,7 +108,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         decoration: InputDecoration(
                           labelText: 'Enter your email',
                           labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.email, color: Colors.deepPurple),
+                          prefixIcon:
+                              Icon(Icons.email, color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -124,10 +126,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           ),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
                             : const Text(
                                 'Send Reset Link',
-                                style: TextStyle(fontSize: 18, color: Colors.white),
+                                style: TextStyle(
+                                    fontSize: 18, color: Colors.white),
                               ),
                       ),
                     ],

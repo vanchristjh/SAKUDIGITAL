@@ -9,6 +9,8 @@ import 'package:saku_digital/pages/profil_detail.dart';
 import 'package:saku_digital/pages/transaction_detail.dart';
 import 'package:saku_digital/pages/transfer_detail.dart';
 import 'package:saku_digital/pages/messages_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,6 +22,22 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _isBalanceVisible = true;
   int _selectedIndex = 1;
+  String _userName = 'User';
+  String? _profileImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userName = prefs.getString('name')?.split(' ')[0] ?? 'User';
+      _profileImage = prefs.getString('profileImage');
+    });
+  }
 
   void _toggleBalanceVisibility() {
     setState(() {
@@ -73,7 +91,7 @@ class _HomePageState extends State<HomePage> {
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Hi, User!',
+                    Text('Hi, $_userName!',
                         style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -117,11 +135,13 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Padding(
-                    padding: EdgeInsets.only(right: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
                     child: CircleAvatar(
                       radius: 18,
-                      backgroundImage: AssetImage('assets/logo.jpg'),
+                      backgroundImage: _profileImage != null
+                          ? FileImage(File(_profileImage!)) as ImageProvider
+                          : const AssetImage('assets/logo.jpg'),
                     ),
                   ),
                 ],
@@ -328,7 +348,6 @@ class _HomePageState extends State<HomePage> {
         children: [
           const Text('Layanan Digital',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
