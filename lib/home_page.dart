@@ -1,3 +1,5 @@
+import 'dart:ui';
+import 'package:saku_digital/utils/theme_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:saku_digital/pages/aktivitas_page.dart';
 import 'package:saku_digital/pages/bayar_detail.dart';
@@ -52,109 +54,169 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
+    final double appBarHeight = kToolbarHeight + statusBarHeight;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Hi, User!',
-                style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500)),
-            const Text('Welcome back',
-                style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: _openMessages,
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_outlined,
-                    color: Colors.black, size: 28),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 14,
-                      minHeight: 14,
-                    ),
-                    child: const Text('2',
+      extendBodyBehindAppBar: true,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              color: Colors.white.withOpacity(0.8),
+              child: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Hi, User!',
                         style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center),
-                  ),
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500)),
+                    const Text('Welcome back',
+                        style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
+                  ],
                 ),
+                actions: [
+                  IconButton(
+                    onPressed: _openMessages,
+                    icon: Stack(
+                      children: [
+                        const Icon(Icons.notifications_outlined,
+                            color: Colors.black, size: 28),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 14,
+                              minHeight: 14,
+                            ),
+                            child: const Text('2',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 16),
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundImage: AssetImage('assets/logo.jpg'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: _buildBody(appBarHeight),
+      bottomNavigationBar: Container(
+        decoration: ThemeConstants.bottomNavBarDecoration,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(0, Icons.history, 'Aktivitas'),
+                _buildNavItem(1, Icons.home, 'Beranda'),
+                _buildNavItem(2, Icons.person, 'Profil'),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          const Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundImage: AssetImage('assets/logo.jpg'),
-            ),
-          ),
-        ],
-      ),
-      body: _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.history), label: 'Aktivitas'),
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Beranda'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: false,
-        type: BottomNavigationBarType.fixed,
+        ),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _selectedIndex == index;
+    return InkWell(
+      onTap: () => _onItemTapped(index),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: isSelected
+            ? BoxDecoration(
+                color: ThemeConstants.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              )
+            : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? ThemeConstants.primaryColor : Colors.grey,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? ThemeConstants.primaryColor : Colors.grey,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(double topPadding) {
     switch (_selectedIndex) {
       case 0:
-        return const AktivitasPage();
+        return Padding(
+          padding: EdgeInsets.only(top: topPadding),
+          child: const AktivitasPage(),
+        );
       case 1:
-        return _buildHomeContent();
+        return _buildHomeContent(topPadding);
       case 2:
       default:
-        return const ProfilDetail();
+        return Padding(
+          padding: EdgeInsets.only(top: topPadding),
+          child: const ProfilDetail(),
+        );
     }
   }
 
-  Widget _buildHomeContent() {
+  Widget _buildHomeContent(double topPadding) {
     return SingleChildScrollView(
+      padding: EdgeInsets.only(top: topPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildBalanceCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12), // Reduced from 16
           _buildQuickActions(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12), // Reduced from 16
           _buildPromotionBanner(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12), // Reduced from 16
           _buildRecentTransactions(),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -166,14 +228,14 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF6C63FF), Color(0xFF4E4BB8)],
+          colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withOpacity(0.3),
+            color: Colors.blue.withOpacity(0.3),
             offset: const Offset(0, 8),
             blurRadius: 20,
           ),
@@ -185,11 +247,8 @@ class _HomePageState extends State<HomePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Balance',
-                  style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500)),
+              const Text('Saldo Anda',
+                  style: TextStyle(color: Colors.white70, fontSize: 16)),
               IconButton(
                 onPressed: _toggleBalanceVisibility,
                 icon: Icon(
@@ -201,18 +260,38 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 8),
           Text(
-            _isBalanceVisible ? 'Rp 1,000,000' : '****',
+            _isBalanceVisible ? 'Rp 1.500.000' : '• • • • • •',
             style: const TextStyle(
-                color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildBalanceAction(Icons.add_circle_outline, 'Top Up'),
-              _buildBalanceAction(Icons.send_outlined, 'Transfer'),
-              _buildBalanceAction(Icons.payments_outlined, 'Pay'),
-              _buildBalanceAction(Icons.history, 'History'),
+              _buildMainAction(Icons.add, 'Isi Saldo', () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const IsisaldoDetail()));
+              }),
+              _buildMainAction(Icons.send, 'Kirim', () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const TransferDetail()));
+              }),
+              _buildMainAction(Icons.qr_code_scanner, 'Pindai', () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const PindaiDetail()));
+              }),
+              _buildMainAction(Icons.payment, 'Bayar', () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const BayarDetail()));
+              }),
             ],
           ),
         ],
@@ -220,20 +299,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildBalanceAction(IconData icon, String label) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildMainAction(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.blue, size: 24),
           ),
-          child: Icon(icon, color: Colors.white, size: 24),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-      ],
+          const SizedBox(height: 8),
+          Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
+        ],
+      ),
     );
   }
 
@@ -243,29 +326,30 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Quick Actions',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87)),
-          const SizedBox(height: 16),
+          const Text('Layanan Digital',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 4,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisCount: 5,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.75,
             children: [
-              _buildQuickActionItem(Icons.phone_android, 'Pulsa', Colors.blue),
-              _buildQuickActionItem(Icons.flash_on, 'Electric', Colors.orange),
+              _buildQuickActionItem(
+                  Icons.phone_android, 'Pulsa', Colors.orange),
+              _buildQuickActionItem(
+                  Icons.electric_bolt, 'Listrik', Colors.blue),
+              _buildQuickActionItem(Icons.water_drop, 'PDAM', Colors.lightBlue),
               _buildQuickActionItem(Icons.wifi, 'Internet', Colors.green),
-              _buildQuickActionItem(Icons.movie, 'Movies', Colors.red),
-              _buildQuickActionItem(Icons.games, 'Games', Colors.purple),
               _buildQuickActionItem(
-                  Icons.agriculture, 'Investment', Colors.brown),
-              _buildQuickActionItem(
-                  Icons.card_giftcard, 'Rewards', Colors.pink),
-              _buildQuickActionItem(Icons.more_horiz, 'More', Colors.grey),
+                  Icons.smartphone, 'Paket Data', Colors.purple),
+              _buildQuickActionItem(Icons.tv, 'TV Kabel', Colors.indigo),
+              _buildQuickActionItem(Icons.credit_card, 'KK', Colors.red),
+              _buildQuickActionItem(Icons.receipt_long, 'Tagihan', Colors.teal),
+              _buildQuickActionItem(Icons.games, 'Games', Colors.amber),
+              _buildQuickActionItem(Icons.grid_view, 'Lainnya', Colors.grey),
             ],
           ),
         ],
@@ -275,18 +359,24 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildQuickActionItem(IconData icon, String label, Color color) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: color, size: 24),
+          child: Icon(icon, color: color, size: 22),
         ),
-        const SizedBox(height: 8),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: Colors.black87)),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Colors.black87),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }
@@ -356,14 +446,14 @@ class _HomePageState extends State<HomePage> {
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: 5,
+            padding: EdgeInsets.zero,
             itemBuilder: (context, index) {
-              double transactionAmount = 150000.0 +
-                  (index * 10000); // Varying amount for each transaction
+              double transactionAmount = 150000.0 + (index * 10000);
 
               return GestureDetector(
                 onTap: () {
@@ -372,43 +462,54 @@ class _HomePageState extends State<HomePage> {
                     MaterialPageRoute(
                       builder: (context) => TransactionDetail(
                         transactionId: index + 1,
-                        transactionAmount:
-                            transactionAmount, // Pass amount to detail page
+                        transactionAmount: transactionAmount,
                       ),
                     ),
                   );
                 },
-                child: _buildTransactionCard(index, transactionAmount),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.shade100,
+                        offset: const Offset(0, 2),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.account_balance_wallet,
+                          color: Colors.blue.shade300),
+                    ),
+                    title: Text('Transaction ${index + 1}',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade800)),
+                    subtitle: Text('Payment for services',
+                        style: TextStyle(color: Colors.grey.shade600)),
+                    trailing: Text(
+                      'Rp ${transactionAmount.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        color: Colors.blue.shade400,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
               );
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTransactionCard(int index, double transactionAmount) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.blueAccent.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.account_balance_wallet,
-              color: Colors.blueAccent),
-        ),
-        title: Text('Transaction ${index + 1}',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: const Text('Payment for services'),
-        trailing: Text('Rp ${transactionAmount.toStringAsFixed(0)}',
-            style: const TextStyle(color: Colors.blueAccent)),
       ),
     );
   }
