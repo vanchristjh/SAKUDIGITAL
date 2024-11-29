@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:saku_digital/utils/theme_constants.dart';
 import 'package:saku_digital/home_page.dart';
 import 'package:saku_digital/login_services/forgot_password_page.dart';
 import 'package:saku_digital/login_services/register_page.dart';
@@ -28,13 +27,11 @@ class _LoginPageState extends State<LoginPage>
   void initState() {
     super.initState();
 
-    // Initialize animations in initState where 'this' is available
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
 
-    // Initialize animations after controller is created
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
@@ -52,7 +49,6 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
 
-    // Start the animation
     _animationController.forward();
   }
 
@@ -362,10 +358,8 @@ class _LoginPageState extends State<LoginPage>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo and branding
                         _buildLogoSection(),
                         const SizedBox(height: 40),
-                        // Login form with glassmorphism
                         _buildLoginForm(),
                       ],
                     ),
