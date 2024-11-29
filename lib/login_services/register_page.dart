@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:saku_digital/helper/database_helper.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({Key? key}) : super(key: key);
+  const RegisterPage({super.key});
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -37,24 +39,22 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     try {
-      final userExists = await DatabaseHelper.instance.getUserByEmail(email);
-      if (userExists != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email already exists')),
-        );
-        return;
-      }
+      UserCredential userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      Map<String, dynamic> user = {
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'password': password,
-      };
+      if (userCredential.user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set({
+          'name': name,
+          'email': email,
+          'phone': phone,
+        });
 
-      final result = await DatabaseHelper.instance.insertUser(user);
-
-      if (result > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registration successful')),
         );
@@ -102,7 +102,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       BoxShadow(
                         color: Colors.black.withOpacity(0.1),
                         blurRadius: 12,
-                        offset: Offset(0, 6),
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
@@ -112,8 +112,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         controller: _nameController,
                         decoration: InputDecoration(
                           labelText: 'Full Name',
-                          labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.person, color: Colors.deepPurple),
+                          labelStyle: const TextStyle(color: Colors.deepPurple),
+                          prefixIcon: const Icon(Icons.person,
+                              color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -125,8 +126,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           labelText: 'Email',
-                          labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.email, color: Colors.deepPurple),
+                          labelStyle: const TextStyle(color: Colors.deepPurple),
+                          prefixIcon:
+                              const Icon(Icons.email, color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -138,8 +140,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
                           labelText: 'Phone',
-                          labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.phone, color: Colors.deepPurple),
+                          labelStyle: const TextStyle(color: Colors.deepPurple),
+                          prefixIcon:
+                              const Icon(Icons.phone, color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -151,8 +154,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         obscureText: true,
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.lock, color: Colors.deepPurple),
+                          labelStyle: const TextStyle(color: Colors.deepPurple),
+                          prefixIcon:
+                              const Icon(Icons.lock, color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),

@@ -3,9 +3,10 @@ import 'package:saku_digital/helper/database_helper.dart';
 import 'package:saku_digital/home_page.dart';
 import 'package:saku_digital/login_services/forgot_password_page.dart';
 import 'package:saku_digital/login_services/register_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -38,9 +39,13 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final user = await DatabaseHelper.instance.getUserByEmailAndPassword(email, password);
+      UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      if (user != null) {
+      if (userCredential.user != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Login successful!'),
@@ -104,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
                       BoxShadow(
                         color: Colors.black.withOpacity(0.1),
                         blurRadius: 12,
-                        offset: Offset(0, 6),
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
@@ -115,8 +120,9 @@ class _LoginPageState extends State<LoginPage> {
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           labelText: 'Email',
-                          labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.email, color: Colors.deepPurple),
+                          labelStyle: const TextStyle(color: Colors.deepPurple),
+                          prefixIcon:
+                              const Icon(Icons.email, color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -128,8 +134,9 @@ class _LoginPageState extends State<LoginPage> {
                         obscureText: true,
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          labelStyle: TextStyle(color: Colors.deepPurple),
-                          prefixIcon: Icon(Icons.lock, color: Colors.deepPurple),
+                          labelStyle: const TextStyle(color: Colors.deepPurple),
+                          prefixIcon:
+                              const Icon(Icons.lock, color: Colors.deepPurple),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -146,10 +153,12 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
                             : const Text(
                                 'Login',
-                                style: TextStyle(fontSize: 18, color: Colors.white),
+                                style: TextStyle(
+                                    fontSize: 18, color: Colors.white),
                               ),
                       ),
                       const SizedBox(height: 10),
@@ -157,7 +166,9 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    const ForgotPasswordPage()),
                           );
                         },
                         child: const Text(
@@ -170,7 +181,8 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const RegisterPage()),
+                            MaterialPageRoute(
+                                builder: (context) => const RegisterPage()),
                           );
                         },
                         child: const Text(

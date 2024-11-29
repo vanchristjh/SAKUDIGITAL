@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:saku_digital/home_page.dart';
 import 'package:saku_digital/login_page.dart';
 import 'package:saku_digital/login_services/forgot_password_page.dart';
@@ -12,7 +13,10 @@ import 'package:saku_digital/pages/bayar_detail.dart';
 import 'package:saku_digital/pages/pindai_detail.dart';
 import 'package:saku_digital/pages/isisaldo_detail.dart';
 import 'package:saku_digital/splash_screen.dart';
-void main() {
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -25,19 +29,20 @@ class MyApp extends StatelessWidget {
       title: 'Saku Digital',
       initialRoute: '/',
       routes: {
-        '/': (context) => SplashScreen(), 
+        '/': (context) => SplashScreen(),
         '/home': (context) => const HomePage(),
         '/aktivitas': (context) => const AktivitasPage(),
         '/profil': (context) => const ProfilDetail(),
         '/messages': (context) => const MessagesPage(),
-        '/transaction': (context) => const TransactionDetail(transactionId: 0, transactionAmount: 0.0),
+        '/transaction': (context) =>
+            const TransactionDetail(transactionId: 0, transactionAmount: 0.0),
         '/transfer': (context) => const TransferDetail(),
         '/bayar': (context) => const BayarDetail(),
         '/pindai': (context) => const PindaiDetail(),
         '/isisaldo': (context) => const IsisaldoDetail(),
-        '/login': (context) => const LoginPage(),  
-        '/register': (context) => const RegisterPage(),  
-        '/forgot-password': (context) => const ForgotPasswordPage(),  
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+        '/forgot-password': (context) => const ForgotPasswordPage(),
       },
       theme: ThemeData(
         primarySwatch: Colors.blue,
