@@ -34,12 +34,11 @@ class MyApp extends StatelessWidget {
         '/aktivitas': (context) => const AktivitasPage(),
         '/profil': (context) => const ProfilDetail(),
         '/messages': (context) => const MessagesPage(),
-        '/transaction': (context) =>
-            const TransactionDetail(transactionId: 0, transactionAmount: 0.0),
+        '/transaction': (context) => const TransactionDetail(transactionId: 0, transactionAmount: 0.0), // Default route with dummy data
         '/transfer': (context) => const TransferDetail(),
         '/bayar': (context) => const BayarDetail(),
         '/pindai': (context) => const PindaiDetail(),
-        '/isisaldo': (context) => const IsisaldoDetail(),
+        '/isisaldo': (context) => IsiSaldoDetail(onBalanceUpdated: (double balance) {}),
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/forgot-password': (context) => const ForgotPasswordPage(),

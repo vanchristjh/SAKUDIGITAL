@@ -30,6 +30,7 @@ class TransactionDetail extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Transaction ID Section
             Text(
               'Transaction ID',
               style: const TextStyle(
@@ -62,6 +63,8 @@ class TransactionDetail extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+
+            // Transaction Amount Section
             Text(
               'Amount',
               style: const TextStyle(
@@ -94,6 +97,8 @@ class TransactionDetail extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 40),
+
+            // Back Button
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);

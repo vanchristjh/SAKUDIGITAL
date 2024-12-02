@@ -150,7 +150,6 @@ class _ProfilDetailState extends State<ProfilDetail> {
                   'Privacy Policy', Icons.privacy_tip_outlined, () {}),
             ]),
 
-            // Logout Button
             Padding(
               padding: const EdgeInsets.all(16),
               child: ElevatedButton(

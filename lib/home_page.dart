@@ -292,7 +292,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => const IsisaldoDetail()));
+                        builder: (context) => IsiSaldoDetail(onBalanceUpdated: (double ) {  },)));
               }),
               _buildMainAction(Icons.send, 'Kirim', () {
                 Navigator.push(

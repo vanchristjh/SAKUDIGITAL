@@ -1,175 +1,146 @@
 import 'package:flutter/material.dart';
 
-class IsisaldoDetail extends StatefulWidget {
-  const IsisaldoDetail({Key? key}) : super(key: key);
+class IsiSaldoDetail extends StatefulWidget {
+  final Function(double) onBalanceUpdated;
+
+  const IsiSaldoDetail({super.key, required this.onBalanceUpdated});
 
   @override
-  _IsisaldoDetailState createState() => _IsisaldoDetailState();
+  _IsiSaldoDetailState createState() => _IsiSaldoDetailState();
 }
 
-class _IsisaldoDetailState extends State<IsisaldoDetail> {
+class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
+  final TextEditingController _amountController = TextEditingController();
+  String? _errorMessage;
   String? _selectedBank;
-  final List<String> _banks = ['BRI', 'BNI', 'Mandiri', 'BCA', 'Danamon'];
+
+  final List<Map<String, String>> banks = [
+    {'name': 'BRI', 'logo': 'assets/bri_logo.png'},
+    {'name': 'Mandiri', 'logo': 'assets/mandiri_logo.jpg'},
+    {'name': 'BNI', 'logo': 'assets/bni_logo.png'},
+    {'name': 'BCA', 'logo': 'assets/bca_logo.jpg'},
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Isi Saldo',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 26,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Colors.blueAccent,
-        elevation: 4,
-        centerTitle: true,
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              // Dropdown for bank selection
-              DropdownButtonFormField<String>(
-                value: _selectedBank,
-                hint: const Text(
-                  'Pilih Bank',
-                  style: TextStyle(color: Colors.white),
-                ),
-                items: _banks.map((String bank) {
-                  return DropdownMenuItem<String>(
-                    value: bank,
-                    child: Text(
-                      bank,
-                      style: const TextStyle(color: Colors.black),
+      appBar: AppBar(title: const Text('Isi Saldo')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            Text(
+              'Pilih Bank dan Masukkan Jumlah Saldo yang ingin Anda Isi',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Pemilihan Bank
+            Text(
+              'Pilih Bank',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 10),
+            ListView.builder(
+              shrinkWrap: true,
+              itemCount: banks.length,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedBank = banks[index]['name'];
+                    });
+                  },
+                  child: Card(
+                    margin: const EdgeInsets.symmetric(vertical: 5),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: AssetImage(banks[index]['logo']!),
+                        radius: 25,
+                      ),
+                      title: Text(banks[index]['name']!),
+                      tileColor: _selectedBank == banks[index]['name']
+                          ? Colors.blue.withOpacity(0.2)
+                          : Colors.white,
                     ),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedBank = newValue;
-                  });
-                },
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.2),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none,
                   ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            // Input Jumlah Saldo
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Jumlah Saldo',
+                hintText: 'Rp 0',
+                errorText: _errorMessage,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
+                prefixIcon: Icon(Icons.attach_money, color: Colors.blue),
+              ),
+              style: TextStyle(fontSize: 20),
+            ),
+            const SizedBox(height: 20),
+            // Tombol Isi Saldo
+            ElevatedButton(
+              onPressed: _topUpBalance,
+              child: const Text('Isi Saldo', style: TextStyle(fontSize: 18)),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50), 
+                backgroundColor: Colors.blue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // Custom amount TextField
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Masukkan Jumlah Saldo',
-                  hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 16,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.2),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none,
-                  ),
-                  prefixIcon: const Icon(Icons.wallet, color: Colors.white),
-                ),
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            const SizedBox(height: 20),
+            // Info
+            Text(
+              'Saldo yang diisi akan langsung ditambahkan ke saldo Anda.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.black.withOpacity(0.7),
               ),
-              const SizedBox(height: 20),
-
-              // Predefined amounts for top-up
-              const Text(
-                'Pilih Jumlah Top-Up:',
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
-              const SizedBox(height: 10),
-
-              // Predefined top-up buttons
-              Wrap(
-                spacing: 10,
-                children: [
-                  _buildTopUpButton(context, 'Rp 50.000'),
-                  _buildTopUpButton(context, 'Rp 100.000'),
-                  _buildTopUpButton(context, 'Rp 200.000'),
-                  _buildTopUpButton(context, 'Rp 500.000'),
-                ],
-              ),
-              const SizedBox(height: 30),
-
-              // Elevated button for submitting the balance
-              ElevatedButton(
-                onPressed: () {
-                  if (_selectedBank != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Saldo berhasil diisi melalui $_selectedBank!')),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Silakan pilih bank terlebih dahulu!')),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.blueAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 60),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  elevation: 5,
-                  shadowColor: Colors.black.withOpacity(0.2),
-                ),
-                child: const Text(
-                  'Isi Saldo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTopUpButton(BuildContext context, String amount) {
-    return ElevatedButton(
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Top-Up Amount: $amount')),
-        );
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blueAccent,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-        elevation: 3,
-      ),
-      child: Text(
-        amount,
-        style: const TextStyle(fontSize: 16),
-      ),
-    );
+  void _topUpBalance() {
+    final String amountText = _amountController.text;
+    if (_selectedBank == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pilih bank terlebih dahulu')),
+      );
+      return;
+    }
+
+    if (amountText.isEmpty || double.tryParse(amountText) == null || double.parse(amountText) <= 0) {
+      setState(() {
+        _errorMessage = 'Masukkan jumlah yang valid!';
+      });
+    } else {
+      final double amount = double.parse(amountText);
+      widget.onBalanceUpdated(amount);  // Update the balance in the parent
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saldo berhasil diisi sebesar Rp $amount dari $_selectedBank')),
+      );
+      Navigator.pop(context);  // Close the page
+    }
   }
 }
