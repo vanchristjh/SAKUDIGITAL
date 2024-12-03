@@ -85,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'sakudigital-3021c.firebasestorage.app',
     measurementId: 'G-6BNX6LESV4',
   );
+
 }
