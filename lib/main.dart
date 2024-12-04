@@ -6,7 +6,6 @@ import 'package:saku_digital/login_services/forgot_password_page.dart';
 import 'package:saku_digital/login_services/register_page.dart';
 import 'package:saku_digital/pages/aktivitas_page.dart';
 import 'package:saku_digital/pages/profil_detail.dart';
-import 'package:saku_digital/pages/messages_page.dart';
 import 'package:saku_digital/pages/transaction_detail.dart';
 import 'package:saku_digital/pages/transfer_detail.dart';
 import 'package:saku_digital/pages/bayar_detail.dart';
@@ -47,7 +46,6 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomePage(),
         '/aktivitas': (context) => const AktivitasPage(),
         '/profil': (context) => const ProfilDetail(),
-        '/messages': (context) => const MessagesPage(message: {}),
         '/transaction': (context) => const TransactionDetail(
             transactionId: 0, transactionAmount: 0.0),
         '/transfer': (context) => TransferDetail(

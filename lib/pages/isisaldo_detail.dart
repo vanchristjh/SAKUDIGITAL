@@ -40,7 +40,6 @@ class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
               ),
             ),
             const SizedBox(height: 20),
-            // Pemilihan Bank
             Text(
               'Pilih Bank',
               style: TextStyle(
@@ -77,7 +76,6 @@ class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
               },
             ),
             const SizedBox(height: 20),
-            // Input Jumlah Saldo
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -94,7 +92,6 @@ class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
               style: TextStyle(fontSize: 20),
             ),
             const SizedBox(height: 20),
-            // Tombol Isi Saldo
             ElevatedButton(
               onPressed: _topUpBalance,
               child: const Text('Isi Saldo', style: TextStyle(fontSize: 18)),
@@ -140,7 +137,7 @@ class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saldo berhasil diisi sebesar Rp $amount dari $_selectedBank')),
       );
-      Navigator.pop(context);  // Close the page
+      Navigator.pop(context); 
     }
   }
 }
