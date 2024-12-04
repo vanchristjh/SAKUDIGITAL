@@ -74,11 +74,10 @@ class _SplashScreenState extends State<SplashScreen>
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(0.1),
                 ),
-                child: Image.asset(
-                  'assets/logo.jpg',
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.cover,
+                child: Icon(
+                  Icons.account_balance_wallet, // Ganti logo dengan ikon dompet
+                  size: 100,
+                  color: Colors.white.withOpacity(0.8),
                 ),
               ),
             ),

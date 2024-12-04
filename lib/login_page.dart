@@ -121,20 +121,13 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
-  Widget _buildLogoSection() {
+  Widget _buildHeaderSection() {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withOpacity(0.1),
-          ),
-          child: Image.asset(
-            'assets/logo.jpg',
-            width: 80,
-            height: 80,
-          ),
+        Icon(
+          Icons.account_balance_wallet,
+          size: 80,
+          color: Colors.white,
         ),
         const SizedBox(height: 16),
         const Text(
@@ -308,7 +301,7 @@ class _LoginPageState extends State<LoginPage>
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // Background with particles
+          // Background with gradient
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -318,31 +311,6 @@ class _LoginPageState extends State<LoginPage>
                   Colors.blue[700]!,
                   Colors.blue[900]!,
                 ],
-              ),
-            ),
-          ),
-          // Circular decorations
-          Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -50,
-            left: -50,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
               ),
             ),
           ),
@@ -358,7 +326,7 @@ class _LoginPageState extends State<LoginPage>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildLogoSection(),
+                        _buildHeaderSection(),
                         const SizedBox(height: 40),
                         _buildLoginForm(),
                       ],

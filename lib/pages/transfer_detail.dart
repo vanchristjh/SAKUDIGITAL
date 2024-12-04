@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TransferDetail extends StatefulWidget {
   final Function(double newBalance) onBalanceUpdated;
@@ -18,6 +19,7 @@ class _TransferDetailState extends State<TransferDetail> {
   bool _isProcessing = false;
   String? _transferMessage;
   double _currentBalance = 0;
+  String? _pin;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -26,6 +28,7 @@ class _TransferDetailState extends State<TransferDetail> {
   void initState() {
     super.initState();
     _loadCurrentBalance();
+    _loadPin();
   }
 
   Future<void> _loadCurrentBalance() async {
@@ -39,6 +42,13 @@ class _TransferDetailState extends State<TransferDetail> {
     }
   }
 
+  Future<void> _loadPin() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _pin = prefs.getString('userPin');
+    });
+  }
+
   Future<void> _performTransfer() async {
     final String recipientEmail = _recipientEmailController.text.trim();
     final double? amount = double.tryParse(_amountController.text);
@@ -46,6 +56,15 @@ class _TransferDetailState extends State<TransferDetail> {
     if (recipientEmail.isEmpty || amount == null || amount <= 0) {
       setState(() {
         _transferMessage = "Masukkan email penerima dan jumlah transfer yang valid.";
+      });
+      return;
+    }
+
+    // Ask for PIN before proceeding with the transfer
+    String? enteredPin = await _showPinDialog();
+    if (enteredPin != _pin) {
+      setState(() {
+        _transferMessage = "PIN yang Anda masukkan salah.";
       });
       return;
     }
@@ -116,8 +135,8 @@ class _TransferDetailState extends State<TransferDetail> {
               });
         });
 
-        await _loadCurrentBalance();
-        widget.onBalanceUpdated(_currentBalance);
+        await _loadCurrentBalance(); // Refresh balance after transaction
+        widget.onBalanceUpdated(_currentBalance); // Notify HomePage to update balance
 
         setState(() {
           _isProcessing = false;
@@ -135,6 +154,40 @@ class _TransferDetailState extends State<TransferDetail> {
     }
   }
 
+  Future<String?> _showPinDialog() async {
+    String pin = '';
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Masukkan PIN'),
+          content: TextField(
+            obscureText: true,
+            onChanged: (value) {
+              pin = value;
+            },
+            decoration: InputDecoration(hintText: 'Masukkan PIN Anda'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Batal'),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+            TextButton(
+              child: Text('Konfirmasi'),
+              onPressed: () {
+                Navigator.pop(context, pin);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -143,19 +196,27 @@ class _TransferDetailState extends State<TransferDetail> {
         backgroundColor: Colors.blueAccent,
       ),
       body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blueAccent, Colors.lightBlue],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         padding: const EdgeInsets.all(20),
         child: SingleChildScrollView(
           child: Column(
             children: [
               Text(
                 "Saldo Anda: Rp ${_currentBalance.toStringAsFixed(2)}",
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const SizedBox(height: 20),
               TextField(
                 controller: _recipientEmailController,
                 decoration: InputDecoration(
                   labelText: 'Email Penerima',
+                  prefixIcon: Icon(Icons.email, color: Colors.blueAccent),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(15),
                   ),
@@ -167,6 +228,7 @@ class _TransferDetailState extends State<TransferDetail> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Jumlah Transfer',
+                  prefixIcon: Icon(Icons.money, color: Colors.blueAccent),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(15),
                   ),
@@ -174,13 +236,20 @@ class _TransferDetailState extends State<TransferDetail> {
               ),
               const SizedBox(height: 20),
               _isProcessing
-                  ? const CircularProgressIndicator()
+                  ? const CircularProgressIndicator(color: Colors.white)
                   : ElevatedButton(
                       onPressed: _performTransfer,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 16, horizontal: 50),
                       ),
-                      child: const Text('Transfer'),
+                      child: const Text(
+                        'Transfer',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                     ),
               const SizedBox(height: 20),
               if (_transferMessage != null)

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saku_digital/home_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -17,6 +18,7 @@ class _RegisterPageState extends State<RegisterPage>
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _pinController = TextEditingController();
   bool _isLoading = false;
 
   late AnimationController _animationController;
@@ -38,10 +40,8 @@ class _RegisterPageState extends State<RegisterPage>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.35),
-      end: Offset.zero,
-    ).animate(
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.35), end: Offset.zero)
+        .animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
@@ -58,7 +58,13 @@ class _RegisterPageState extends State<RegisterPage>
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
+    _pinController.dispose();
     super.dispose();
+  }
+
+  Future<void> _setPin(String pin) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userPin', pin);  // Store PIN securely
   }
 
   void _registerUser() async {
@@ -66,8 +72,9 @@ class _RegisterPageState extends State<RegisterPage>
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
+    final pin = _pinController.text.trim();
 
-    if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty) {
+    if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty || pin.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields')),
       );
@@ -91,6 +98,9 @@ class _RegisterPageState extends State<RegisterPage>
           'phone': phone,
           'uid': userCredential.user!.uid,
         });
+
+        // Save the PIN securely
+        await _setPin(pin);
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registration successful')),
@@ -226,6 +236,13 @@ class _RegisterPageState extends State<RegisterPage>
                         _buildInputField(
                           controller: _passwordController,
                           label: 'Password',
+                          icon: Icons.lock,
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildInputField(
+                          controller: _pinController,
+                          label: 'Security PIN',
                           icon: Icons.lock,
                           obscureText: true,
                         ),

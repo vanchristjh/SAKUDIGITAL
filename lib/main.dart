@@ -13,11 +13,25 @@ import 'package:saku_digital/pages/bayar_detail.dart';
 import 'package:saku_digital/pages/pindai_detail.dart';
 import 'package:saku_digital/pages/isisaldo_detail.dart';
 import 'package:saku_digital/splash_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // Initialize Firebase Messaging and handle background messages
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  
+  // Get the device token (useful for push notifications)
+  String? token = await FirebaseMessaging.instance.getToken();
+  print("FCM Token: $token");
+
   runApp(const MyApp());
+}
+
+// Background message handler
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  print("Handling a background message: ${message.messageId}");
 }
 
 class MyApp extends StatelessWidget {
@@ -27,13 +41,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Saku Digital',
-      initialRoute: '/',
+      initialRoute: '/',  // SplashScreen will be shown initially
       routes: {
         '/': (context) => SplashScreen(),
         '/home': (context) => const HomePage(),
         '/aktivitas': (context) => const AktivitasPage(),
         '/profil': (context) => const ProfilDetail(),
-        '/messages': (context) => const MessagesPage(),
+        '/messages': (context) => const MessagesPage(message: {}),
         '/transaction': (context) => const TransactionDetail(
             transactionId: 0, transactionAmount: 0.0),
         '/transfer': (context) => TransferDetail(
@@ -48,7 +62,7 @@ class MyApp extends StatelessWidget {
         '/forgot-password': (context) => const ForgotPasswordPage(),
       },
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.blue,  // Primary color for the app
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
     );

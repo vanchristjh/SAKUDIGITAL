@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';  // Firebase Auth import
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({Key? key}) : super(key: key);
@@ -12,12 +13,17 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _emailController = TextEditingController();
   bool _isLoading = false;
 
+  // Firebase Auth instance
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Handle forgot password functionality
   void _handleForgotPassword() async {
     setState(() {
       _isLoading = true;
     });
     try {
       final email = _emailController.text.trim();
+
       if (email.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -40,9 +46,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         });
         return;
       }
-      // Simulate sending reset email
-      await Future.delayed(const Duration(seconds: 2));
-      // Assume always successfully sent
+
+      // Send password reset email using Firebase Auth
+      await _auth.sendPasswordResetEmail(email: email);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

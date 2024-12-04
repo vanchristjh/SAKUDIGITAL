@@ -1,17 +1,10 @@
-import 'dart:ui';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// ignore: unused_import
-import 'package:local_auth/local_auth.dart';
-
-// Import halaman terkait
 import 'package:saku_digital/pages/isisaldo_detail.dart';
 import 'package:saku_digital/pages/transfer_detail.dart';
 import 'package:saku_digital/pages/profil_detail.dart';
-import 'package:saku_digital/pages/messages_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -102,35 +95,27 @@ class _HomePageState extends State<HomePage> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Hi, $_userName!',
-              style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(
+            'Hi, $_userName!',
+            style: const TextStyle(color: Colors.grey, fontSize: 14),
+          ),
           const Text(
             'Welcome back',
             style: TextStyle(
-                color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+              color: Colors.black,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
       actions: [
-        IconButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MessagesPage()),
-            );
-          },
-          icon: const Icon(Icons.notifications_outlined,
-              color: Colors.black, size: 28),
+        CircleAvatar(
+          backgroundImage:
+              _profileImage != null ? NetworkImage(_profileImage!) : null,
+          child: _profileImage == null ? const Icon(Icons.person) : null,
         ),
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: CircleAvatar(
-            radius: 18,
-            backgroundImage: _profileImage != null
-                ? FileImage(File(_profileImage!)) as ImageProvider
-                : const AssetImage('assets/logo.jpg'),
-          ),
-        ),
+        const SizedBox(width: 16),
       ],
     );
   }
@@ -172,9 +157,9 @@ class _HomePageState extends State<HomePage> {
             return ListTile(
               title: Text(transaction['type']),
               subtitle: Text(transaction['timestamp']
-                  .toDate()
+                  ?.toDate()
                   .toString()
-                  .split('.')[0]),
+                  .split('.')[0] ?? ''),
               trailing: Text(
                 (transaction['type'] == 'Isi Saldo' ? '+' : '-') +
                     'Rp ${transaction['amount']}',
@@ -222,8 +207,10 @@ class _HomePageState extends State<HomePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Saldo Anda',
-                  style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const Text(
+                'Saldo Anda',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
               IconButton(
                 onPressed: _toggleBalanceVisibility,
                 icon: Icon(
@@ -237,7 +224,10 @@ class _HomePageState extends State<HomePage> {
           Text(
             _isBalanceVisible ? 'Rp ${_balance.toStringAsFixed(0)}' : '• • • • •',
             style: const TextStyle(
-                color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 24),
           Row(
@@ -306,7 +296,7 @@ class _HomePageState extends State<HomePage> {
           child: Icon(icon, color: Colors.blue),
         ),
         const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white)),
+        Text(label, style: const TextStyle(color: Colors.black)),
       ],
     );
   }
