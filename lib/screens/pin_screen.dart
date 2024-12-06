@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../register_page.dart' as register; // Add this import
 import '../services/firebase_service.dart';
 
 class PinScreen extends StatefulWidget {

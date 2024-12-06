@@ -7,7 +7,7 @@ import '../screens/pin_screen.dart';
 class TransferDetail extends StatefulWidget {
   final Function(double) onTransfer;
 
-  const TransferDetail({Key? key, required this.onTransfer}) : super(key: key);
+  const TransferDetail({Key? key, required this.onTransfer, required double currentBalance, required String recipientId, required recipientName}) : super(key: key);
 
   @override
   State<TransferDetail> createState() => _TransferDetailState();

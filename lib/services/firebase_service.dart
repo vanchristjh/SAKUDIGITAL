@@ -8,10 +8,33 @@ class FirebaseService {
   // Authentication methods
   Future<UserCredential> signIn(String email, String password) async {
     try {
-      return await _auth.signInWithEmailAndPassword(
+      final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+          
+      if (!userDoc.exists) {
+        await _auth.signOut();
+        throw Exception('User data not found. Please register again.');
+      }
+
+      final userData = userDoc.data()!;
+      if (userData['account_status'] != 'active') {
+        await _auth.signOut();
+        throw Exception('This account has been deactivated.');
+      }
+
+      // Update last login
+      await userDoc.reference.update({
+        'last_login': FieldValue.serverTimestamp(),
+      });
+
+      return userCredential;
     } catch (e) {
       throw _handleAuthError(e);
     }
@@ -19,18 +42,29 @@ class FirebaseService {
 
   Future<UserCredential> signUp(String email, String password, String pin) async {
     try {
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      // Check if email exists
+      final methods = await _auth.fetchSignInMethodsForEmail(email);
+      if (methods.isNotEmpty) {
+        throw Exception('An account already exists with this email');
+      }
+
+      final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-      
-      // Create user data with PIN after successful registration
-      await createUserData(userCredential.user!.uid, {
+
+      // Initial user data
+      final userData = {
         'email': email,
         'pin': pin,
         'balance': 0.0,
-      });
-      
+        'pin_attempts': 0,
+        'account_status': 'active',
+        'created_at': FieldValue.serverTimestamp(),
+        'last_login': FieldValue.serverTimestamp(),
+      };
+
+      await createUserData(userCredential.user!.uid, userData);
       return userCredential;
     } catch (e) {
       throw _handleAuthError(e);
@@ -66,68 +100,143 @@ class FirebaseService {
     }
   }
 
-  Future<void> createUserWithPin(String uid, String pin) async {
+  Future<void> updateUserData(String uid, Map<String, dynamic> data) async {
     try {
-      await _firestore.collection('users').doc(uid).set({
-        'pin': pin,
-        'pin_created_at': FieldValue.serverTimestamp(),
-        'pin_attempts': 0,
-        'last_pin_attempt': null,
-      }, SetOptions(merge: true));
+      await _firestore.collection('users').doc(uid).update(data);
     } catch (e) {
-      throw Exception('Failed to set PIN: ${e.toString()}');
+      throw _handleFirestoreError(e);
     }
   }
 
-  Future<bool> verifyPin(String enteredPin) async {
+  Future<List<TransactionData>> getUserTransactions(String uid) async {
     try {
+      final snapshot = await _firestore
+          .collection('transactions')
+          .where('userId', isEqualTo: uid)
+          .orderBy('timestamp', descending: true)
+          .limit(10)
+          .get();
+
+      return snapshot.docs.map((doc) => TransactionData.fromFirestore(doc)).toList();
+    } catch (e) {
+      throw _handleFirestoreError(e);
+    }
+  }
+
+  Exception _handleFirestoreError(dynamic e) {
+    if (e is FirebaseException) {
+      switch (e.code) {
+        case 'permission-denied':
+          return Exception('You do not have permission to perform this action');
+        case 'not-found':
+          return Exception('The requested data does not exist');
+        default:
+          return Exception(e.message ?? 'Database operation failed');
+      }
+    }
+    return Exception(e.toString());
+  }
+
+  // PIN verification and transaction handling
+  Future<Map<String, dynamic>> validatePIN(String pin, {double? amount}) async {
+    try {
+      if (pin.isEmpty || pin.length != 6) {
+        throw Exception('PIN must be 6 digits');
+      }
+
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
       final docRef = _firestore.collection('users').doc(user.uid);
       
-      return await _firestore.runTransaction<bool>((transaction) async {
+      return await _firestore.runTransaction<Map<String, dynamic>>((transaction) async {
         final docSnap = await transaction.get(docRef);
         if (!docSnap.exists) throw Exception('User data not found');
         
         final userData = docSnap.data()!;
+        final storedPin = userData['pin']?.toString();  // Ensure PIN is string
         final attempts = (userData['pin_attempts'] ?? 0) as int;
         
-        // Update attempt counter
-        transaction.update(docRef, {
-          'last_pin_attempt': FieldValue.serverTimestamp(),
-          'pin_attempts': attempts + 1,
-        });
-
-        // Check if PIN matches
-        if (userData['pin'] == enteredPin) {
-          // Reset attempts on successful verification
-          transaction.update(docRef, {'pin_attempts': 0});
-          return true;
-        }
+        if (storedPin == null) throw Exception('Security PIN not set');
         
-        // Optional: Add security delay after multiple failed attempts
+        // Check PIN attempts
         if (attempts >= 3) {
-          throw Exception('Too many failed attempts. Please try again later.');
+          final lastAttempt = userData['last_pin_attempt'] as Timestamp?;
+          if (lastAttempt != null) {
+            final cooldownPeriod = DateTime.now().difference(lastAttempt.toDate());
+            if (cooldownPeriod.inMinutes < 30) {
+              throw Exception('Too many failed attempts. Please try again after ${30 - cooldownPeriod.inMinutes} minutes.');
+            }
+          }
         }
+
+        // Validate PIN
+        if (storedPin != pin) {
+          await docRef.update({
+            'pin_attempts': attempts + 1,
+            'last_pin_attempt': FieldValue.serverTimestamp(),
+          });
+          throw Exception('Invalid PIN');
+        }
+
+        // Reset attempts on successful validation
+        await docRef.update({'pin_attempts': 0});
         
-        return false;
+        return {
+          'valid': true,
+          'balance': userData['balance'] ?? 0.0,
+          'userData': userData,
+        };
       });
     } catch (e) {
-      throw Exception('PIN verification failed: ${e.toString()}');
+      throw Exception(e.toString());
     }
   }
 
-  Future<void> updatePin(String currentPin, String newPin) async {
+  Future<void> processSecuredTransaction({
+    required String pin,
+    required double amount,
+    required String description,
+    required bool isDebit,
+  }) async {
     try {
+      final validation = await validatePIN(
+        pin,
+        amount: isDebit ? amount : null,
+      );
+
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Verify current PIN first
-      final isValid = await verifyPin(currentPin);
-      if (!isValid) throw Exception('Current PIN is incorrect');
+      await _firestore.runTransaction((transaction) async {
+        final userDoc = _firestore.collection('users').doc(user.uid);
+        final currentBalance = validation['balance'] as double;
+        final newBalance = isDebit ? currentBalance - amount : currentBalance + amount;
+        
+        transaction.update(userDoc, {'balance': newBalance});
 
-      // Update to new PIN
+        // Record transaction
+        transaction.set(_firestore.collection('transactions').doc(), {
+          'userId': user.uid,
+          'amount': amount,
+          'type': isDebit ? 'debit' : 'credit',
+          'description': description,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (e) {
+      throw Exception(e.toString());
+    }
+  }
+
+  // PIN management
+  Future<void> updatePIN(String currentPin, String newPin) async {
+    try {
+      await validatePIN(currentPin);
+      
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
       await _firestore.collection('users').doc(user.uid).update({
         'pin': newPin,
         'pin_updated_at': FieldValue.serverTimestamp(),
@@ -138,208 +247,261 @@ class FirebaseService {
     }
   }
 
-  Future<bool> verifyPinForTransaction(String pin, double amount) async {
-    try {
-      final isValidPin = await verifyPin(pin);
-      if (!isValidPin) throw Exception('Invalid PIN');
+  // Add method to check auth state
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-
-      final docSnapshot = await _firestore.collection('users').doc(user.uid).get();
-      final balance = (docSnapshot.data()?['balance'] ?? 0.0) as double;
-
-      if (balance < amount) throw Exception('Insufficient balance');
-      return true;
-    } catch (e) {
-      throw Exception(e.toString());
-    }
-  }
-
-  Future<void> setUserPin(String pin) async {
+  // Method to deactivate account (instead of deleting)
+  Future<void> deactivateAccount() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-      
-      await _firestore.collection('users').doc(user.uid).update({
-        'pin': pin,
-      });
-    } catch (e) {
-      throw FirebaseException(
-        plugin: 'firestore',
-        message: 'Failed to set PIN: ${e.toString()}',
-      );
-    }
-  }
-
-  Future<Map<String, dynamic>> validatePinAndGetUserData(String pin) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-
-      final docSnapshot = await _firestore.collection('users').doc(user.uid).get();
-      if (!docSnapshot.exists) throw Exception('User data not found');
-      
-      final userData = docSnapshot.data()!;
-      final storedPin = userData['pin'] as String?;
-      
-      if (storedPin == null) throw Exception('PIN not set');
-      if (storedPin != pin) throw Exception('Invalid PIN');
-      
-      return userData;
-    } catch (e) {
-      throw Exception(e.toString());
-    }
-  }
-
-  Future<bool> validateTransactionPin(String pin, double amount) async {
-    try {
-      final userData = await validatePinAndGetUserData(pin);
-      final balance = (userData['balance'] ?? 0.0) as double;
-      
-      if (balance < amount) throw Exception('Insufficient balance');
-      return true;
-    } catch (e) {
-      throw Exception(e.toString());
-    }
-  }
-
-  Future<void> processTransaction(double amount, String description) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-
-      await _firestore.runTransaction((transaction) async {
-        final userDoc = await transaction.get(_firestore.collection('users').doc(user.uid));
-        final currentBalance = (userDoc.data()?['balance'] ?? 0.0) as double;
-        final newBalance = currentBalance - amount;
-        
-        if (newBalance < 0) throw Exception('Insufficient balance');
-        
-        transaction.update(_firestore.collection('users').doc(user.uid), {
-          'balance': newBalance,
+      if (user != null) {
+        await _firestore.collection('users').doc(user.uid).update({
+          'account_active': false,
+          'deactivated_at': FieldValue.serverTimestamp(),
         });
-
-        // Record transaction history
-        transaction.set(_firestore.collection('transactions').doc(), {
-          'userId': user.uid,
-          'amount': amount,
-          'description': description,
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': 'debit'
-        });
-      });
+        await _auth.signOut();
+      }
     } catch (e) {
-      throw Exception('Transaction failed: ${e.toString()}');
+      throw Exception('Failed to deactivate account: ${e.toString()}');
     }
   }
 
-  Future<void> setSecurityPin(String pin) async {
+  // Add method to verify account status
+  Future<bool> verifyAccountStatus(String uid) async {
     try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-      
-      await _firestore.collection('users').doc(user.uid).update({
-        'security_pin': pin,
-        'security_pin_created_at': FieldValue.serverTimestamp(),
-        'pin_attempts': 0
-      });
+      final doc = await _firestore.collection('users').doc(uid).get();
+      return doc.exists && doc.data()?['account_status'] == 'active';
     } catch (e) {
-      throw Exception('Failed to set security PIN: ${e.toString()}');
+      return false;
     }
   }
 
-  Future<bool> validateSecurityPin(String pin) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-
-      final docRef = _firestore.collection('users').doc(user.uid);
-      
-      return await _firestore.runTransaction<bool>((transaction) async {
-        final doc = await transaction.get(docRef);
-        if (!doc.exists) throw Exception('User data not found');
-        
-        final userData = doc.data()!;
-        final storedPin = userData['security_pin'];
-        final attempts = (userData['pin_attempts'] ?? 0) as int;
-        
-        if (attempts >= 3) {
-          throw Exception('Too many failed attempts. Please try again later.');
-        }
-
-        if (storedPin != pin) {
-          transaction.update(docRef, {
-            'pin_attempts': attempts + 1,
-            'last_failed_attempt': FieldValue.serverTimestamp()
-          });
-          return false;
-        }
-
-        // Reset attempts on successful validation
-        transaction.update(docRef, {'pin_attempts': 0});
-        return true;
-      });
-    } catch (e) {
-      throw Exception('PIN validation failed: ${e.toString()}');
+  // Add auto-login check
+  Future<User?> autoLogin() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      final isActive = await verifyAccountStatus(user.uid);
+      if (!isActive) {
+        await _auth.signOut();
+        return null;
+      }
+      return user;
     }
-  }
-
-  Future<void> processSecuredTransaction(String pin, double amount, String description) async {
-    try {
-      final isValid = await validateSecurityPin(pin);
-      if (!isValid) throw Exception('Invalid security PIN');
-      
-      // Proceed with the transaction if PIN is valid
-      await processTransaction(amount, description);
-    } catch (e) {
-      throw Exception('Secured transaction failed: ${e.toString()}');
-    }
-  }
-
-  Future<void> processSecureTransaction(String pin, double amount, String description) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
-
-      final userDoc = _firestore.collection('users').doc(user.uid);
-      
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(userDoc);
-        if (!snapshot.exists) throw Exception('User document not found');
-
-        // Verify PIN
-        final userData = snapshot.data()!;
-        final storedPin = userData['pin'];
-        if (storedPin != pin) throw Exception('Invalid PIN');
-
-        final currentBalance = (userData['balance'] ?? 0.0) as double;
-        final newBalance = currentBalance + amount;
-
-        transaction.update(userDoc, {'balance': newBalance});
-
-        // Add transaction record
-        final historyRef = userDoc.collection('transactions').doc();
-        transaction.set(historyRef, {
-          'amount': amount,
-          'description': description,
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': amount > 0 ? 'credit' : 'debit',
-        });
-      });
-    } catch (e) {
-      throw Exception(e.toString());
-    }
+    return null;
   }
 
   // Error handling
   Exception _handleAuthError(dynamic e) {
     if (e is FirebaseAuthException) {
-      return Exception(e.message ?? 'Authentication failed');
-    }
-    if (e is FirebaseException) {
-      return Exception(e.message ?? 'Firebase operation failed');
+      switch (e.code) {
+        case 'wrong-password':
+          return Exception('Invalid password. Please try again.');
+        case 'user-not-found':
+          return Exception('No account exists with this email. Please register first.');
+        case 'user-disabled':
+          return Exception('This account has been disabled. Please contact support.');
+        case 'too-many-requests':
+          return Exception('Too many failed attempts. Please try again later.');
+        default:
+          return Exception(e.message ?? 'Authentication failed');
+      }
     }
     return Exception(e.toString());
   }
+
+  Future<Map<String, dynamic>> validateBillAccount({
+    required String billType,
+    required String accountNumber,
+  }) async {
+    // For testing, accept any account number with length >= 8
+    await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
+    final isValid = accountNumber.length >= 8;
+    
+    return {
+      'isValid': isValid,
+      'message': isValid ? 'Account valid' : 'Invalid account number',
+      'details': isValid ? {
+        'accountName': 'Test Account',
+        'accountNumber': accountNumber,
+        'type': billType.toLowerCase(),
+      } : null,
+    };
+  }
+
+  Future<Map<String, dynamic>> getMockBillDetailsSimple({
+    required String billType,
+    required String accountNumber,
+  }) async {
+    // For testing, return mock bill details
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    return {
+      'billId': 'MOCK-${DateTime.now().millisecondsSinceEpoch}',
+      'accountName': 'Test Account',
+      'amount': 150000.0,
+      'dueDate': DateTime.now().add(const Duration(days: 7)),
+      'description': '$billType Bill',
+    };
+  }
+
+  Future<Map<String, dynamic>> getBillDetails({
+    required String billType,
+    required String accountNumber,
+  }) async {
+    try {
+      final billsRef = _firestore.collection('bills');
+      final doc = await billsRef
+          .where('type', isEqualTo: billType.toLowerCase())
+          .where('accountNumber', isEqualTo: accountNumber)
+          .where('status', isEqualTo: 'unpaid')
+          .get();
+
+      if (doc.docs.isEmpty) {
+        return {
+          'amount': 0.0,
+          'message': 'No pending bills',
+          'dueDate': DateTime.now(),
+        };
+      }
+
+      final billData = doc.docs.first.data();
+      return {
+        'billId': doc.docs.first.id,
+        'accountName': billData['accountName'] ?? '',
+        'amount': billData['amount'] ?? 0.0,
+        'dueDate': billData['dueDate']?.toDate() ?? DateTime.now(),
+        'description': billData['description'] ?? '',
+      };
+    } catch (e) {
+      throw Exception('Failed to fetch bill details: ${e.toString()}');
+    }
+  }
+
+  Future<String> processBillPayment({
+    required String billType,
+    required String accountNumber,
+    required double amount,
+    required String pin,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+
+    return _firestore.runTransaction((transaction) async {
+      try {
+        // Create payment record first with pending status
+        final paymentRef = _firestore.collection('transactions').doc();
+        final paymentData = {
+          'userId': user.uid,
+          'type': 'bill_payment',
+          'category': billType.toLowerCase(),
+          'accountNumber': accountNumber,
+          'amount': amount,
+          'timestamp': FieldValue.serverTimestamp(),
+          'status': 'pending',
+          'description': '$billType Payment - $accountNumber',
+        };
+
+        transaction.set(paymentRef, paymentData);
+
+        // Validate PIN and check balance
+        final pinValidation = await validatePIN(pin, amount: amount);
+        final currentBalance = pinValidation['balance'] as double;
+        if (currentBalance < amount) {
+          // Update transaction status to failed
+          transaction.update(paymentRef, {'status': 'failed'});
+          throw Exception('Insufficient balance');
+        }
+
+        // Update user balance
+        final userRef = _firestore.collection('users').doc(user.uid);
+        transaction.update(userRef, {
+          'balance': currentBalance - amount,
+        });
+
+        // Update transaction status to completed
+        transaction.update(paymentRef, {'status': 'completed'});
+
+        return paymentRef.id;
+      } catch (e) {
+        rethrow;
+      }
+    });
+  }
+
+  Future<Map<String, dynamic>> getMockBillDetails({
+    required String billType,
+    required String accountNumber,
+  }) async {
+    try {
+      // Simulate fetching bill details
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // In production, this should fetch actual bill details
+      return {
+        'accountName': 'John Doe',
+        'billType': billType,
+        'accountNumber': accountNumber,
+        'amount': 150000.0,
+        'dueDate': DateTime.now().add(const Duration(days: 7)),
+      };
+    } catch (e) {
+      throw Exception('Failed to fetch bill details: ${e.toString()}');
+    }
+  }
+
+  // Add method to process bill payment
+  Future<void> processMockBillPayment({
+    required String billType,
+    required String accountNumber,
+    required double amount,
+    required String pin,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+
+    return _firestore.runTransaction((transaction) async {
+      // Validate PIN first
+      await validatePIN(pin, amount: amount);
+
+      // Create payment record
+      final paymentRef = _firestore.collection('transactions').doc();
+      transaction.set(paymentRef, {
+        'userId': user.uid,
+        'type': 'bill_payment',
+        'category': billType.toLowerCase(),
+        'accountNumber': accountNumber,
+        'amount': amount,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'completed',
+      });
+
+      // Update user balance
+      final userRef = _firestore.collection('users').doc(user.uid);
+      final userDoc = await transaction.get(userRef);
+      final currentBalance = userDoc.data()?['balance'] as double? ?? 0.0;
+      
+      if (currentBalance < amount) {
+        throw Exception('Insufficient balance');
+      }
+
+      transaction.update(userRef, {
+        'balance': currentBalance - amount,
+      });
+    });
+  }
+}
+
+class TransactionData {
+  final String id;
+  final double amount;
+  final String type;
+  final String description;
+  final DateTime timestamp;
+
+  TransactionData.fromFirestore(DocumentSnapshot doc) 
+    : id = doc.id,
+      amount = doc['amount']?.toDouble() ?? 0.0,
+      type = doc['type'] ?? 'unknown',
+      description = doc['description'] ?? '',
+      timestamp = (doc['timestamp'] as Timestamp).toDate();
 }

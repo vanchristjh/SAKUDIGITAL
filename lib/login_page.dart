@@ -64,13 +64,32 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> handleLogin() async {
+    if (_isLoading) return;
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // Improved validation
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both email and password')),
+      );
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     
     try {
-      final userCredential = await _firebaseService.signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      final userCredential = await _firebaseService.signIn(email, password);
+
+      if (!mounted) return;
 
       if (userCredential.user != null) {
         Navigator.pushReplacement(
@@ -79,11 +98,17 @@ class _LoginPageState extends State<LoginPage>
         );
       }
     } catch (e) {
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

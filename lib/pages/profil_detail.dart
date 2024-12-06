@@ -1,192 +1,346 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:saku_digital/pages/pin_management.dart';
 
-class ProfileDetail extends StatelessWidget {
+class UserService {
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+
+  Stream<DocumentSnapshot> getUserStream() {
+    return _firestore
+        .collection('users')
+        .doc(_auth.currentUser?.uid)
+        .snapshots();
+  }
+
+  Future<void> logout(BuildContext context) async {
+    try {
+      await _auth.signOut();
+      if (context.mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      }
+    } catch (e) {
+      throw Exception('Failed to logout: $e');
+    }
+  }
+}
+
+class ProfileDetail extends StatefulWidget {
   const ProfileDetail({Key? key}) : super(key: key);
-  
+
+  @override
+  State<ProfileDetail> createState() => _ProfileDetailState();
+}
+
+class _ProfileDetailState extends State<ProfileDetail> {
+  final _userService = UserService();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(FirebaseAuth.instance.currentUser?.uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final userData = snapshot.data!.data() as Map<String, dynamic>;
-          final name = userData['name'] ?? 'User';
-          final email = userData['email'] ?? '';
-
-          return CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 200,
-                floating: false,
-                pinned: true,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                        colors: [Colors.blue[400]!, Colors.blue[900]!],
-                      ),
-                    ),
-                  ),
-                  title: Text(name),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.all(16),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundColor: Colors.blue.shade100,
-                            child: Text(
-                              name[0].toUpperCase(),
-                              style: const TextStyle(fontSize: 32, color: Colors.blue),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            email,
-                            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildStatColumn('Transactions', '24'),
-                              _buildStatColumn('Balance', 'Rp 2.5M'),
-                              _buildStatColumn('Rewards', '150'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildSettingsSection(context),
-                  ],
-                ),
-              ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF0A0E21),
+              Colors.blue.shade900.withOpacity(0.8),
             ],
-          );
-        },
+          ),
+        ),
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: _userService.getUserStream(),
+          builder: _buildProfileContent,
+        ),
       ),
     );
   }
 
-  Widget _buildStatColumn(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
+  Widget _buildProfileContent(BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const CustomLoadingIndicator();
+    }
+
+    if (snapshot.hasError) {
+      return CustomErrorWidget(error: snapshot.error.toString());
+    }
+
+    if (!snapshot.hasData || !snapshot.data!.exists) {
+      return const CustomEmptyState();
+    }
+
+    final userData = snapshot.data!.data() as Map<String, dynamic>;
+    
+    return CustomScrollView(
+      slivers: [
+        _buildAppBar(userData),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              children: [
+                _buildProfileSection(userData),
+                const SizedBox(height: 24),
+                _buildStatsSection(userData),
+                const SizedBox(height: 24),
+                _buildActionsSection(),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSettingsSection(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 10,
+  Widget _buildAppBar(Map<String, dynamic> userData) {
+    return SliverAppBar(
+      expandedHeight: 200.0,
+      floating: false,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      flexibleSpace: FlexibleSpaceBar(
+        title: Text(userData['name'] ?? 'Profile',
+            style: const TextStyle(color: Colors.white)),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.blue.shade900, Colors.transparent],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
           ),
-        ],
+          child: Center(
+            child: Hero(
+              tag: 'profile_image',
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.white,
+                child: Text(
+                  (userData['name'] ?? 'U')[0].toUpperCase(),
+                  style: TextStyle(fontSize: 40, color: Colors.blue.shade900),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileSection(Map<String, dynamic> userData) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          _buildSettingsTile(
-            icon: Icons.person_outline,
-            title: 'Edit Profile',
-            onTap: () {},
+          _buildInfoRow(Icons.email, userData['email'] ?? 'No email'),
+          const SizedBox(height: 8),
+          _buildInfoRow(Icons.phone, userData['phone'] ?? 'No phone'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(Map<String, dynamic> userData) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: _buildStatCard(
+        'Balance', 
+        'Rp ${userData['balance']?.toString() ?? '0'}',
+        Icons.account_balance_wallet
+      ),
+    );
+  }
+
+  Widget _buildActionsSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          _buildActionButton(
+            'PIN Management',
+            Icons.lock_outline,
+            () => _navigateToPinManagement(context),
           ),
-          _buildSettingsTile(
-            icon: Icons.notifications_outlined,
-            title: 'Notifications',
-            onTap: () {},
-          ),
-          _buildSettingsTile(
-            icon: Icons.security,
-            title: 'Security',
-            onTap: () {},
-          ),
-          _buildSettingsTile(
-            icon: Icons.logout,
-            title: 'Logout',
-            onTap: () async {
-              await FirebaseAuth.instance.signOut();
-              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-            },
-            textColor: Colors.red,
+          _buildActionButton(
+            'Logout',
+            Icons.logout,
+            () => _handleLogout(context),
+            color: Colors.red.shade400,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? textColor,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: textColor ?? Colors.grey[700]),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: textColor ?? Colors.grey[800],
-          fontWeight: FontWeight.w500,
+  // Helper Widgets
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white70, size: 20),
+        const SizedBox(width: 12),
+        Text(text, style: const TextStyle(color: Colors.white70)),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.blue[400], size: 24),
+            const SizedBox(height: 8),
+            Text(value,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            Text(title,
+                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          ],
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-      onTap: onTap,
+    );
+  }
+
+  Widget _buildActionButton(String title, IconData icon, VoidCallback onTap,
+      {Color? color}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: color ?? Colors.white70),
+              const SizedBox(width: 16),
+              Text(title,
+                  style: TextStyle(color: color ?? Colors.white70, fontSize: 16)),
+              const Spacer(),
+              const Icon(Icons.chevron_right, color: Colors.white38),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Navigation Methods
+
+  Future<void> _navigateToPinManagement(BuildContext context) async {
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PinManagementPage()),
+      );
+    } catch (e) {
+      _showError(context, 'Failed to open PIN management: $e');
+    }
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0A0E21),
+        title: const Text('Confirm Logout',
+            style: TextStyle(color: Colors.white)),
+        content: const Text('Are you sure you want to logout?',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Logout',
+                style: TextStyle(color: Colors.red[400])),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await _userService.logout(context);
+      } catch (e) {
+        if (mounted) _showError(context, e.toString());
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+}
+
+// Custom Widgets
+class CustomLoadingIndicator extends StatelessWidget {
+  const CustomLoadingIndicator({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+      ),
+    );
+  }
+}
+
+class CustomErrorWidget extends StatelessWidget {
+  final String error;
+  const CustomErrorWidget({Key? key, required this.error}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          const SizedBox(height: 16),
+          Text(error, style: const TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
+  }
+}
+
+class CustomEmptyState extends StatelessWidget {
+  const CustomEmptyState({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text('No profile data available',
+          style: TextStyle(color: Colors.white70)),
     );
   }
 }

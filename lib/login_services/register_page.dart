@@ -1,11 +1,11 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:saku_digital/home_page.dart' as home;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:saku_digital/home_page.dart';
 import 'package:saku_digital/login_page.dart' as login;
 import 'package:saku_digital/login_page.dart';
+import 'package:saku_digital/services/firebase_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -71,54 +71,76 @@ class _RegisterPageState extends State<RegisterPage>
   }
 
   void _registerUser() async {
+    if (_isLoading) return;
+
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
     final pin = _pinController.text.trim();
 
-    if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty || pin.isEmpty) {
+    // Validate inputs
+    if (name.isEmpty || email.isEmpty || phone.isEmpty || 
+        password.isEmpty || pin.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields')),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    // Validate PIN format
+    if (pin.length != 6 || !RegExp(r'^\d+$').hasMatch(pin)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN must be 6 digits')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final firebaseService = FirebaseService();
+      final userCredential = await firebaseService.signUp(email, password, pin);
 
       if (userCredential.user != null) {
-        await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+        // Additional user data
+        final userData = {
           'name': name,
-          'email': email,
           'phone': phone,
-          'uid': userCredential.user!.uid,
-        });
+          'email': email,
+          'pin': pin,
+          'account_status': 'active',
+          'created_at': FieldValue.serverTimestamp(),
+          'last_login': FieldValue.serverTimestamp(),
+        };
 
-        // Save the PIN securely
+        await firebaseService.createUserData(userCredential.user!.uid, userData);
         await _setPin(pin);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful')),
+        if (!mounted) return;
+        
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
         );
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomePage()));
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<Map<String, String>> _getDeviceInfo() async {
+    // Add basic device info for security
+    return {
+      'timestamp': DateTime.now().toIso8601String(),
+      'platform': Theme.of(context).platform.toString(),
+    };
   }
 
   Widget _buildInputField({
@@ -284,6 +306,13 @@ class _RegisterPageState extends State<RegisterPage>
         ],
       ),
     );
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DiagnosticsProperty<Animation<double>>('_fadeAnimation', _fadeAnimation));
+    properties.add(DiagnosticsProperty<Animation<Offset>>('_slideAnimation', _slideAnimation));
   }
 }
 

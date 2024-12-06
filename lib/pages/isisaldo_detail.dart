@@ -36,10 +36,11 @@ class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
           title: 'Enter PIN to Confirm Top Up',
           onPinVerified: (pin) async {
             try {
-              await _firebaseService.processSecureTransaction(
-                pin,
-                amount, // Positive amount for top up
-                'Top Up via $_selectedBank'
+              await _firebaseService.processSecuredTransaction(
+                pin: pin,
+                amount: amount,
+                description: 'Top Up via $_selectedBank',
+                isDebit: false, // false for credit/top-up
               );
               
               if (!mounted) return;

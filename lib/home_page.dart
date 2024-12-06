@@ -36,25 +36,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadUserData() async {
+    if (!mounted) return;
+    
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-        if (mounted) {
-          setState(() {
-            _balance = (doc.data()?['balance'] ?? 0.0).toDouble();
-          });
-        }
+      if (user == null) return;
+
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!mounted) return;
+      
+      if (docSnapshot.exists) {
+        setState(() {
+          _balance = (docSnapshot.data()?['balance'] ?? 0.0).toDouble();
+        });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
-        );
-      }
+      if (!mounted) return;
+      _showErrorSnackbar('Failed to load user data: $e');
     }
   }
 
@@ -506,8 +508,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  void _handleQuickTransfer(String userId) {
-    // TODO: Implement quick transfer to favorite contact
+  void _handleQuickTransfer(String userId) async {
+    try {
+      final recipientDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (!recipientDoc.exists) {
+        throw Exception('Recipient not found');
+      }
+
+      final result = await Navigator.push<double>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferDetail(
+            onTransfer: _updateBalance,
+            currentBalance: _balance,
+            recipientId: userId,
+            recipientName: recipientDoc.data()?['name'],
+          ),
+        ),
+      );
+
+      if (result != null) {
+        await _updateBalance(-result);
+      }
+    } catch (e) {
+      _showErrorSnackbar('Quick transfer failed: $e');
+    }
   }
 
   Widget _buildRecentActivity() {
@@ -616,53 +645,140 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  void _handleTopUp() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => IsiSaldoDetail(
-          onBalanceUpdated: (amount) async {
-            // Update balance in Firestore
-            await _updateBalance(amount);
-          },
-        ),
-      ),
-    );
-  }
-
-  void _handleTransfer() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TransferDetail(
-          onTransfer: (amount) async {
-            // Update balance in Firestore
-            await _updateBalance(-amount);
-          },
-        ),
-      ),
-    );
-  }
-
   Future<void> _updateBalance(double amount) async {
+    if (!mounted) return;
+    
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-          'balance': FieldValue.increment(amount),
+      if (user == null) throw Exception('User not logged in');
+
+      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final userDoc = await transaction.get(userRef);
+        
+        if (!userDoc.exists) {
+          throw Exception('User data not found');
+        }
+
+        final currentBalance = (userDoc.data()?['balance'] ?? 0.0).toDouble();
+        
+        // Check for sufficient balance on deductions
+        if (amount < 0 && currentBalance + amount < 0) {
+          throw Exception('Insufficient balance');
+        }
+
+        final newBalance = currentBalance + amount;
+
+        // Update balance
+        transaction.update(userRef, {
+          'balance': newBalance,
         });
-        await _loadUserData();
+
+        // Add transaction record
+        final transactionRef = userRef.collection('transactions').doc();
+        transaction.set(transactionRef, {
+          'amount': amount.abs(),
+          'type': amount > 0 ? 'Top Up' : 'Transfer',
+          'timestamp': FieldValue.serverTimestamp(),
+          'balance_before': currentBalance,
+          'balance_after': newBalance,
+          'status': 'completed'
+        });
+      });
+
+      // Refresh local balance
+      await _loadUserData();
+
+      // Show success message
+      _showSuccessSnackbar(
+        amount > 0 
+          ? 'Successfully added Rp ${amount.toStringAsFixed(0)}'
+          : 'Successfully transferred Rp ${amount.abs().toStringAsFixed(0)}'
+      );
+
+    } catch (e) {
+      _showErrorSnackbar(e.toString().replaceAll('Exception:', '').trim());
+      rethrow;
+    }
+  }
+
+  void _handleTopUp() async {
+    try {
+      final result = await Navigator.push<double>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => IsiSaldoDetail(
+            onBalanceUpdated: (amount) async {
+              await _updateBalance(amount);
+              return true;
+            },
+          ),
+        ),
+      );
+
+      if (result != null) {
+        // Balance update is handled in the callback
+        await _loadUserData(); // Refresh UI after successful top up
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating balance: $e')),
-        );
-      }
+      _showErrorSnackbar('Top up failed: ${e.toString()}');
     }
+  }
+
+  void _handleTransfer() async {
+    try {
+      final result = await Navigator.push<double>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferDetail(
+            onTransfer: (amount) async {
+              await _updateBalance(-amount);
+              return true;
+            },
+            currentBalance: _balance,
+            recipientId: '',
+            recipientName: null,
+          ),
+        ),
+      );
+
+      if (result != null) {
+        // Balance update is handled in the callback
+        await _loadUserData(); // Refresh UI after successful transfer
+      }
+    } catch (e) {
+      _showErrorSnackbar('Transfer failed: ${e.toString()}');
+    }
+  }
+
+  Future<double> _getCurrentBalance(String userId) async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+    return (doc.data()?['balance'] ?? 0.0).toDouble();
+  }
+
+  void _showErrorSnackbar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Widget _buildTransactionList() {
