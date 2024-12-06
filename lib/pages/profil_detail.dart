@@ -2,110 +2,191 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ProfilDetail extends StatefulWidget {
-  const ProfilDetail({super.key});
-
-  @override
-  _ProfilDetailState createState() => _ProfilDetailState();
-}
-
-class _ProfilDetailState extends State<ProfilDetail> {
-  String _name = 'Nama Pengguna';
-  String _email = 'email@example.com';
-
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProfileData();
-  }
-
-  Future<void> _loadProfileData() async {
-    User? user = _auth.currentUser;
-
-    if (user != null) {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(user.uid).get();
-
-      setState(() {
-        _name = userDoc['name'] ?? user.displayName ?? 'Nama Pengguna';
-        _email = userDoc['email'] ?? user.email ?? 'email@example.com';
-      });
-    }
-  }
-
-  void _logout() async {
-    await _auth.signOut();
-    // Navigasi ke halaman login setelah logout
-    Navigator.of(context).pushReplacementNamed('/login');
-  }
-
-  void _changeIcon() {
-    // Tambahkan fungsi untuk mengganti ikon
-    // Contoh sederhana untuk mengganti ikon di masa depan
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fitur ganti ikon akan ditambahkan!')),
-    );
-  }
+class ProfileDetail extends StatelessWidget {
+  const ProfileDetail({Key? key}) : super(key: key);
+  
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // Avatar dan Informasi Akun
-              Center(
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(FirebaseAuth.instance.currentUser?.uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final userData = snapshot.data!.data() as Map<String, dynamic>;
+          final name = userData['name'] ?? 'User';
+          final email = userData['email'] ?? '';
+
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 200,
+                floating: false,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topRight,
+                        end: Alignment.bottomLeft,
+                        colors: [Colors.blue[400]!, Colors.blue[900]!],
+                      ),
+                    ),
+                  ),
+                  title: Text(name),
+                ),
+              ),
+              SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    // Ikon yang dapat diganti
-                    IconButton(
-                      iconSize: 100,
-                      icon: const Icon(Icons.person, size: 100, color: Colors.blue),
-                      onPressed: _changeIcon,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _name,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.blue.shade100,
+                            child: Text(
+                              name[0].toUpperCase(),
+                              style: const TextStyle(fontSize: 32, color: Colors.blue),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            email,
+                            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildStatColumn('Transactions', '24'),
+                              _buildStatColumn('Balance', 'Rp 2.5M'),
+                              _buildStatColumn('Rewards', '150'),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      _email,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
-                      ),
-                    ),
+                    _buildSettingsSection(context),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-
-              // Tombol Logout
-              ElevatedButton(
-                onPressed: _logout,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 24,
-                  ),
-                ),
-                child: const Text(
-                  'Logout',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
         ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsSection(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+          ),
+        ],
       ),
+      child: Column(
+        children: [
+          _buildSettingsTile(
+            icon: Icons.person_outline,
+            title: 'Edit Profile',
+            onTap: () {},
+          ),
+          _buildSettingsTile(
+            icon: Icons.notifications_outlined,
+            title: 'Notifications',
+            onTap: () {},
+          ),
+          _buildSettingsTile(
+            icon: Icons.security,
+            title: 'Security',
+            onTap: () {},
+          ),
+          _buildSettingsTile(
+            icon: Icons.logout,
+            title: 'Logout',
+            onTap: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            textColor: Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color? textColor,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: textColor ?? Colors.grey[700]),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: textColor ?? Colors.grey[800],
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+      onTap: onTap,
     );
   }
 }

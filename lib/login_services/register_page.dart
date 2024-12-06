@@ -2,7 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:saku_digital/home_page.dart' as home;
 import 'package:saku_digital/home_page.dart';
+import 'package:saku_digital/login_page.dart' as login;
+import 'package:saku_digital/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -180,78 +183,101 @@ class _RegisterPageState extends State<RegisterPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF1A1A2E),
       body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue[700]!, Colors.blue[900]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+          // Animated background
+          Positioned.fill(
+            child: CustomPaint(
+              painter: login.BackgroundPainter(),
             ),
           ),
+
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 40),
+                  Text(
+                    'Create\nAccount',
+                    style: TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  
+                  // Registration form with glassmorphism
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                      ),
+                    ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(height: 40),
-                        const Text(
-                          'Create an Account',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
                         _buildInputField(
                           controller: _nameController,
                           label: 'Full Name',
                           icon: Icons.person,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         _buildInputField(
                           controller: _emailController,
                           label: 'Email',
                           icon: Icons.email,
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         _buildInputField(
                           controller: _phoneController,
-                          label: 'Phone',
+                          label: 'Phone Number',
                           icon: Icons.phone,
                           keyboardType: TextInputType.phone,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         _buildInputField(
                           controller: _passwordController,
                           label: 'Password',
                           icon: Icons.lock,
                           obscureText: true,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         _buildInputField(
                           controller: _pinController,
-                          label: 'Security PIN',
-                          icon: Icons.lock,
+                          label: 'Security PIN (6 digits)',
+                          icon: Icons.security,
                           obscureText: true,
+                          keyboardType: TextInputType.number,
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 24),
                         _buildRegisterButton(),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                            );
+                          },
+                          child: Text(
+                            'Already have an account? Login',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -260,3 +286,5 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 }
+
+// Add BackgroundPainter class from login_page.dart

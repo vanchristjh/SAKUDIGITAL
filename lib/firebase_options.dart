@@ -50,12 +50,13 @@ class DefaultFirebaseOptions {
     measurementId: 'G-VHWGQR7E02',
   );
 
+  // Replace with your actual Firebase config values
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAXMNE5zkeB2gAJS4CHsXrrOpGXGVMZo8g',
-    appId: '1:796150564786:android:8db08df182e6276d75c6ab',
-    messagingSenderId: '796150564786',
-    projectId: 'sakudigital-3021c',
-    storageBucket: 'sakudigital-3021c.firebasestorage.app',
+    apiKey: 'YOUR_API_KEY', // Replace with your API key
+    appId: 'YOUR_APP_ID',
+    messagingSenderId: 'YOUR_SENDER_ID',
+    projectId: 'YOUR_PROJECT_ID',
+    storageBucket: 'YOUR_STORAGE_BUCKET',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

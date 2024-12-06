@@ -1,6 +1,5 @@
-import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'login_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -10,36 +9,39 @@ class SplashScreen extends StatefulWidget {
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late BuildContext _context;
+  final List<Particle> particles = List.generate(20, (index) => Particle());
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    );
+      duration: const Duration(seconds: 3),  // Increased duration
+    )..repeat();
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-
-    _controller.forward();
-
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
+    Future.delayed(const Duration(seconds: 4), () {  // Increased delay
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const LoginPage(),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 800),
+          ),
+        );
+      }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _context = context;
   }
 
   @override
@@ -48,136 +50,95 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  Widget _buildLogoSection() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withOpacity(0.1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 15,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ClipOval(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.1),
-                ),
-                child: Icon(
-                  Icons.account_balance_wallet, // Ganti logo dengan ikon dompet
-                  size: 100,
-                  color: Colors.white.withOpacity(0.8),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'SakuDigital',
-          style: TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Your Digital Wallet Solution',
-          style: TextStyle(
-            fontSize: 18,
-            color: Colors.white.withOpacity(0.8),
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF1A1A2E),
       body: Stack(
         children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.blue[700]!,
-                  Colors.blue[900]!,
-                ],
-              ),
-            ),
-          ),
-          // Decorative circles
-          Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -50,
-            left: -50,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
-              ),
-            ),
-          ),
+          // Animated particles
+          ...particles.map((particle) => AnimatedBuilder(
+                animation: _controller,
+                builder: (_, __) => particle.build(_controller.value),
+              )),
+          
           // Main content
           Center(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: _buildLogoSection(),
-              ),
-            ),
-          ),
-          // Loading indicator
-          Positioned(
-            bottom: 50,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white.withOpacity(0.8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Logo container with glassmorphism
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.1),
+                        blurRadius: 20,
+                        spreadRadius: -5,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet,
+                    size: 80,
+                    color: Colors.white,
                   ),
                 ),
-              ),
+                const SizedBox(height: 24),
+                // App name with modern typography
+                const Text(
+                  'SakuDigital',
+                  style: TextStyle(
+                    fontSize: 42,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your Digital Wallet Solution',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.7),
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class Particle {
+  final double initialX = math.Random().nextDouble() * 400 - 200;
+  final double initialY = math.Random().nextDouble() * 400 - 200;
+  final double speed = math.Random().nextDouble() * 2 + 1;
+  final double size = math.Random().nextDouble() * 4 + 2;
+
+  Widget build(double progress) {
+    return Builder(
+      builder: (context) {
+        final size = MediaQuery.of(context).size;
+        return Positioned(
+          left: size.width / 2 + initialX + math.cos(progress * 2 * math.pi) * 30 * speed,
+          top: size.height / 2 + initialY + math.sin(progress * 2 * math.pi) * 30 * speed,
+          child: Container(
+            width: this.size,
+            height: this.size,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
     );
   }
 }

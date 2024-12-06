@@ -4,19 +4,32 @@ import 'package:saku_digital/home_page.dart';
 import 'package:saku_digital/login_page.dart';
 import 'package:saku_digital/login_services/forgot_password_page.dart';
 import 'package:saku_digital/login_services/register_page.dart';
-import 'package:saku_digital/pages/aktivitas_page.dart';
-import 'package:saku_digital/pages/profil_detail.dart';
-import 'package:saku_digital/pages/transaction_detail.dart';
-import 'package:saku_digital/pages/transfer_detail.dart';
-import 'package:saku_digital/pages/bayar_detail.dart';
-import 'package:saku_digital/pages/pindai_detail.dart';
-import 'package:saku_digital/pages/isisaldo_detail.dart';
+import 'package:saku_digital/pages/bills_page.dart';
+import 'package:saku_digital/pages/investments_page.dart';
+import 'package:saku_digital/pages/vouchers_page.dart';
 import 'package:saku_digital/splash_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:saku_digital/pages/isisaldo_detail.dart';
+import 'package:saku_digital/pages/transfer_detail.dart';
+import 'package:saku_digital/pages/profil_detail.dart';
+import 'package:saku_digital/theme/app_theme.dart';
+import 'firebase_options.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    print('Firebase initialization error: $e');
+  }
 
   // Initialize Firebase Messaging and handle background messages
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -44,20 +57,12 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => SplashScreen(),
         '/home': (context) => const HomePage(),
-        '/aktivitas': (context) => const AktivitasPage(),
-        '/profil': (context) => const ProfilDetail(),
-        '/transaction': (context) => const TransactionDetail(
-            transactionId: 0, transactionAmount: 0.0),
-        '/transfer': (context) => TransferDetail(
-              onBalanceUpdated: (newBalance) {},
-            ),
-        '/bayar': (context) => const BayarDetail(),
-        '/pindai': (context) => const PindaiDetail(),
-        '/isisaldo': (context) =>
-            IsiSaldoDetail(onBalanceUpdated: (double balance) {}),
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/forgot-password': (context) => const ForgotPasswordPage(),
+        '/bills': (context) => const BillsPage(),
+        '/investments': (context) => const InvestmentsPage(),
+        '/vouchers': (context) => const VouchersPage(),
       },
       theme: ThemeData(
         primarySwatch: Colors.blue,  // Primary color for the app

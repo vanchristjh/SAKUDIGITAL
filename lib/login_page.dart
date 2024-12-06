@@ -4,6 +4,7 @@ import 'package:saku_digital/home_page.dart';
 import 'package:saku_digital/login_services/forgot_password_page.dart';
 import 'package:saku_digital/login_services/register_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'services/firebase_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +19,8 @@ class _LoginPageState extends State<LoginPage>
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  final FirebaseService _firebaseService = FirebaseService();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -60,172 +63,140 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
-  void handleLogin() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> handleLogin() async {
+    setState(() => _isLoading = true);
+    
     try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
-
-      if (email.isEmpty || password.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter both email and password!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      final userCredential = await _firebaseService.signIn(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
 
       if (userCredential.user != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid email or password!'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login failed: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
-  Widget _buildHeaderSection() {
-    return Column(
-      children: [
-        Icon(
-          Icons.account_balance_wallet,
-          size: 80,
-          color: Colors.white,
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'SakuDigital',
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 1.2,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E),
+      body: Stack(
+        children: [
+          // Animated background
+          Positioned.fill(
+            child: CustomPaint(
+              painter: BackgroundPainter(),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Your Digital Wallet Solution',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white.withOpacity(0.8),
+
+          // Main content
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 40),
+                  // Welcome text
+                  Text(
+                    'Welcome\nBack',
+                    style: TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  
+                  // Login form with glassmorphism
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Modern input fields
+                        _buildTextField(
+                          controller: _emailController,
+                          hint: 'Email',
+                          icon: Icons.email_outlined,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextField(
+                          controller: _passwordController,
+                          hint: 'Password',
+                          icon: Icons.lock_outline,
+                          isPassword: true,
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Login button with gradient
+                        _buildLoginButton(),
+                        
+                        // Action links
+                        _buildActionLinks(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildInputField({
+  Widget _buildTextField({
     required TextEditingController controller,
+    required String hint,
     required IconData icon,
-    required String label,
     bool isPassword = false,
-    bool obscureText = false,
-    VoidCallback? onToggleVisibility,
-    TextInputType? keyboardType,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(15),
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+        ),
       ),
       child: TextField(
         controller: controller,
-        obscureText: isPassword && obscureText,
-        keyboardType: keyboardType,
+        obscureText: isPassword && _obscurePassword,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          contentPadding: const EdgeInsets.all(20),
-          border: InputBorder.none,
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
-          prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.8)),
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+          prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.7)),
           suffixIcon: isPassword
               ? IconButton(
                   icon: Icon(
-                    obscureText ? Icons.visibility : Icons.visibility_off,
-                    color: Colors.white.withOpacity(0.8),
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                    color: Colors.white.withOpacity(0.7),
                   ),
-                  onPressed: onToggleVisibility,
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                 )
               : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoginForm() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(25),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
-          ),
-          child: Column(
-            children: [
-              _buildInputField(
-                controller: _emailController,
-                icon: Icons.email_outlined,
-                label: 'Email',
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-              _buildInputField(
-                controller: _passwordController,
-                icon: Icons.lock_outline,
-                label: 'Password',
-                isPassword: true,
-                obscureText: _obscurePassword,
-                onToggleVisibility: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-              const SizedBox(height: 30),
-              _buildLoginButton(),
-              const SizedBox(height: 20),
-              _buildActionLinks(),
-            ],
-          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
         ),
       ),
     );
@@ -294,50 +265,27 @@ class _LoginPageState extends State<LoginPage>
       ],
     );
   }
+}
 
+class BackgroundPainter extends CustomPainter {
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          // Background with gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.blue[700]!,
-                  Colors.blue[900]!,
-                ],
-              ),
-            ),
-          ),
-          // Main content
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildHeaderSection(),
-                        const SizedBox(height: 40),
-                        _buildLoginForm(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Color(0xFF16213E),
+          Color(0xFF1A1A2E),
         ],
-      ),
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      paint,
     );
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
