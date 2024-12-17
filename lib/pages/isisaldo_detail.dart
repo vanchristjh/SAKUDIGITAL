@@ -45,7 +45,7 @@ class _IsiSaldoDetailState extends State<IsiSaldoDetail> {
               
               if (!mounted) return;
               Navigator.pop(context); // Close PIN screen
-              widget.onBalanceUpdated(amount);
+              widget.onBalanceUpdated(amount); // Call the callback to update parent
               Navigator.pop(context); // Close top up screen
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Top up successful')),

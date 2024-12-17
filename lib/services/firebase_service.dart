@@ -489,6 +489,191 @@ class FirebaseService {
       });
     });
   }
+
+  Stream<DocumentSnapshot> getUserStream() {
+    final user = _auth.currentUser;
+    if (user == null) return const Stream.empty();
+    
+    return _firestore.collection('users').doc(user.uid).snapshots();
+  }
+
+  // Validate user session
+  Future<bool> validateSession() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    
+    try {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      return userDoc.exists;
+    } catch (e) {
+      print('Session validation error: $e');
+      return false;
+    }
+  }
+
+  // Process transaction with validation
+  Future<void> processTransaction({
+    required String type,
+    required double amount,
+    required String description,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'User not authenticated';
+
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final userDoc = await _firestore.collection('users').doc(user.uid).get();
+        if (!userDoc.exists) throw 'User account not found';
+
+        final currentBalance = (userDoc.data()?['balance'] ?? 0.0) as double;
+        if (type == 'debit' && currentBalance < amount) {
+          throw 'Insufficient balance';
+        }
+
+        final newBalance = type == 'debit' 
+            ? currentBalance - amount 
+            : currentBalance + amount;
+
+        // Update user balance
+        transaction.update(userDoc.reference, {
+          'balance': newBalance,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+
+        // Create transaction record
+        transaction.set(
+          _firestore.collection('transactions').doc(),
+          {
+            'userId': user.uid,
+            'type': type,
+            'amount': amount,
+            'description': description,
+            'timestamp': FieldValue.serverTimestamp(),
+            'status': 'completed',
+            ...?additionalData,
+          },
+        );
+      });
+    } catch (e) {
+      print('Transaction error: $e');
+      throw 'Transaction failed: ${e.toString()}';
+    }
+  }
+
+  // Process bill payment with validation
+  Future<void> processValidatedBillPayment({
+    required String billType,
+    required String accountNumber,
+    required double amount,
+    required String pin,
+  }) async {
+    // Validate PIN first
+    if (!await validatePin(pin)) {
+      throw 'Invalid PIN';
+    }
+
+    try {
+      await processTransaction(
+        type: 'bill_payment',
+        amount: amount,
+        description: '$billType Payment',
+        additionalData: {
+          'billType': billType,
+          'accountNumber': accountNumber,
+        },
+      );
+    } catch (e) {
+      throw 'Payment failed: ${e.toString()}';
+    }
+  }
+
+  // Validate PIN
+  Future<bool> validatePin(String pin) async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      return userDoc.data()?['pin'] == pin;
+    } catch (e) {
+      print('PIN validation error: $e');
+      return false;
+    }
+  }
+
+  // Get transaction history
+  Stream<QuerySnapshot> getTransactionHistory() {
+    final user = _auth.currentUser;
+    if (user == null) return const Stream.empty();
+
+    return _firestore
+        .collection('transactions')
+        .where('userId', isEqualTo: user.uid)
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  Future<void> validateTransaction({
+    required double amount,
+    required String type,
+    required String description,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'Please login to continue';
+
+    final userDoc = await _firestore.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) throw 'Account not found';
+
+    final currentBalance = (userDoc.data()?['balance'] ?? 0.0) as double;
+    if (type == 'debit' && currentBalance < amount) {
+      throw 'insufficient-balance';
+    }
+
+    if (amount <= 0) throw 'invalid-amount';
+  }
+
+  Future<void> processValidatedBillPaymentWithVerification({
+    required String billType,
+    required String accountNumber,
+    required double amount,
+    required String pin,
+  }) async {
+    try {
+      await validateTransaction(
+        amount: amount,
+        type: 'debit',
+        description: '$billType payment',
+      );
+
+      if (!await validatePin(pin)) {
+        throw 'invalid-pin';
+      }
+
+      final validationResult = await validateBillAccount(
+        billType: billType,
+        accountNumber: accountNumber,
+      );
+
+      if (!validationResult['isValid']) {
+        throw 'invalid-account';
+      }
+
+      await processTransaction(
+        amount: amount,
+        type: 'bill_payment',
+        description: '$billType payment for $accountNumber',
+        additionalData: {
+          'billType': billType,
+          'accountNumber': accountNumber,
+          'recipientName': validationResult['name'],
+        },
+      );
+    } catch (e) {
+      print('Bill payment error: $e');
+      rethrow;
+    }
+  }
 }
 
 class TransactionData {

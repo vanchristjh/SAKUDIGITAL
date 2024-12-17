@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:saku_digital/pages/bill_payment_page.dart';
+import 'package:saku_digital/services/firebase_service.dart';
+import 'package:saku_digital/utils/error_handler.dart';
+import 'package:saku_digital/widgets/common_widgets.dart';
+import 'package:saku_digital/widgets/loading_overlay.dart' as overlay;
 import '../utils/theme_constants.dart';
 
 class BillsPage extends StatefulWidget {
@@ -12,32 +17,64 @@ class BillsPage extends StatefulWidget {
 }
 
 class _BillsPageState extends State<BillsPage> {
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  final FirebaseService _firebaseService = FirebaseService();
   
   Stream<QuerySnapshot> getRecentPayments() {
-    final user = _auth.currentUser;
-    if (user == null) return const Stream.empty();
-    
-    // Using a single field index for better performance
-    return _firestore
-        .collection('transactions')
-        .where('userId', isEqualTo: user.uid)
-        .where('type', isEqualTo: 'bill_payment')
-        .orderBy('timestamp', descending: true)
-        .limit(5)
-        .snapshots();
+    try {
+      return _firebaseService.getTransactionHistory().map((snapshot) {
+        final billPayments = snapshot.docs.where(
+          (doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['type'] == 'bill_payment';
+          },
+        ).take(5).toList();
+        
+        return snapshot;
+      });
+    } catch (e) {
+      print('Payment history error: $e');
+      return Stream.error(ErrorHandler.getReadableError(e.toString()));
+    }
   }
 
-  void _navigateToBillPayment(String billType) {
-    Navigator.pushNamed(
-      context,
-      '/bill-payment',
-      arguments: billType,
-    ).then((_) {
-      // Refresh the page when coming back from payment
-      setState(() {});
-    });
+  void validatePaymentData(Map<String, dynamic> data, String docId) {
+    if (!data.containsKey('amount')) {
+      throw 'Missing amount field';
+    }
+    if (!data.containsKey('timestamp')) {
+      throw 'Missing timestamp field';
+    }
+    if (!data.containsKey('status')) {
+      throw 'Missing status field';
+    }
+    if (data['amount'] is! num) {
+      throw 'Invalid amount format';
+    }
+    if (data['timestamp'] is! Timestamp) {
+      throw 'Invalid timestamp format';
+    }
+    if (data['status'] is! String) {
+      throw 'Invalid status format';
+    }
+  }
+
+  Future<void> _handleBillPayment(String billType) async {
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => overlay.LoadingOverlay(
+            child: BillPaymentPage(billType: billType),
+          ),
+        ),
+      );
+
+      if (result == true) {
+        setState(() {}); // Refresh the page
+      }
+    } catch (e) {
+      ErrorHandler.showError(context, ErrorHandler.getReadableError(e.toString()));
+    }
   }
 
   @override
@@ -112,7 +149,7 @@ class _BillsPageState extends State<BillsPage> {
     required Color color,
   }) {
     return InkWell(
-      onTap: () => _navigateToBillPayment(label),
+      onTap: () => _handleBillPayment(label),
       child: Container(
         decoration: ThemeConstants.cardDecoration,
         child: Column(
@@ -171,12 +208,7 @@ class _BillsPageState extends State<BillsPage> {
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error loading payments: ${snapshot.error}',
-              style: const TextStyle(color: Colors.red),
-            ),
-          );
+          return _buildErrorState(snapshot.error.toString());
         }
 
         final payments = snapshot.data?.docs ?? [];
@@ -188,69 +220,157 @@ class _BillsPageState extends State<BillsPage> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: payments.length,
-          itemBuilder: (context, index) {
-            final payment = payments[index].data() as Map<String, dynamic>;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: ThemeConstants.cardDecoration.copyWith(
-                border: payment['status'] == 'completed'
-                    ? null
-                    : Border.all(color: Colors.orange),
-              ),
-              child: ListTile(
-                leading: _getBillIcon(payment['category'] as String? ?? ''),
-                title: Text(
-                  payment['description'] as String? ?? 'Bill Payment',
-                  style: const TextStyle(color: Colors.white),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _formatDate(payment['timestamp'] as Timestamp),
-                      style: TextStyle(color: Colors.grey[400]),
-                    ),
-                    if (payment['status'] != 'completed')
-                      Text(
-                        payment['status']?.toUpperCase() ?? 'PENDING',
-                        style: TextStyle(
-                          color: payment['status'] == 'failed' 
-                              ? Colors.red 
-                              : Colors.orange,
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Rp ${NumberFormat('#,##0').format(payment['amount'])}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (payment['accountNumber'] != null)
-                      Text(
-                        payment['accountNumber'],
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-                isThreeLine: payment['status'] != 'completed',
-              ),
-            );
-          },
+          itemBuilder: (context, index) => _buildListItem(payments[index]),
         );
       },
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: ThemeConstants.cardDecoration,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+          const SizedBox(height: 16),
+          const Text(
+            'Unable to load payments',
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error,
+            style: TextStyle(color: Colors.grey[400], fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => setState(() {}),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ThemeConstants.primaryColor,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListItem(DocumentSnapshot doc) {
+    try {
+      final payment = doc.data() as Map<String, dynamic>?;
+      if (payment == null) throw 'Invalid payment data';
+
+      // Safely extract and validate data
+      final amount = (payment['amount'] as num?)?.toDouble() ?? 0.0;
+      final timestamp = payment['timestamp'] as Timestamp?;
+      final status = payment['status'] as String? ?? 'pending';
+      final description = payment['description'] as String? ?? 'Bill Payment';
+      final category = payment['category'] as String? ?? '';
+      final accountNumber = payment['accountNumber'] as String?;
+
+      if (amount < 0) throw 'Invalid amount';
+      if (timestamp == null) throw 'Missing timestamp';
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: ThemeConstants.cardDecoration.copyWith(
+          border: status == 'completed'
+              ? null
+              : Border.all(color: _getStatusColor(status)),
+        ),
+        child: ListTile(
+          leading: _getBillIcon(category),
+          title: Text(
+            description,
+            style: const TextStyle(color: Colors.white),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatDate(timestamp),
+                style: TextStyle(color: Colors.grey[400]),
+              ),
+              if (status != 'completed')
+                Text(
+                  status.toUpperCase(),
+                  style: TextStyle(
+                    color: _getStatusColor(status),
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+          trailing: _buildTrailingWidget(amount, accountNumber),
+          isThreeLine: status != 'completed',
+        ),
+      );
+    } catch (e) {
+      print('Error building list item: $e');
+      return _buildErrorListItem();
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'failed':
+        return Colors.red;
+      case 'completed':
+        return Colors.green;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  Widget _buildTrailingWidget(double amount, String? accountNumber) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          'Rp ${NumberFormat('#,##0').format(amount)}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        if (accountNumber != null)
+          Text(
+            accountNumber,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildErrorListItem() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: ThemeConstants.cardDecoration,
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red[400], size: 24),
+          const SizedBox(width: 12),
+          const Text(
+            'Error displaying payment',
+            style: TextStyle(color: Colors.red),
+          ),
+        ],
+      ),
     );
   }
 

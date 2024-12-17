@@ -150,84 +150,98 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildBalanceSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Stack(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue[700]!, Colors.blue[900]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final userData = snapshot.data!.data() as Map<String, dynamic>?;
+          final balance = (userData?['balance'] ?? 0.0).toDouble();
+          
+          // Update local balance state
+          if (_balance != balance) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                _balance = balance;
+              });
+            });
+          }
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue[700]!, Colors.blue[900]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Available Balance',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        _isBalanceVisible ? Icons.visibility : Icons.visibility_off,
-                        color: Colors.white70,
-                      ),
-                      onPressed: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _isBalanceVisible ? 'Rp ${_balance.toStringAsFixed(0)}' : '• • • • •',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildQuickAction(
-                      icon: Icons.add_circle_outline,
-                      label: 'Top Up',
-                      onTap: _handleTopUp,
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Available Balance',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _isBalanceVisible ? Icons.visibility : Icons.visibility_off,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _isBalanceVisible ? 'Rp ${balance.toStringAsFixed(0)}' : '• • • • •',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
                     ),
-                    _buildQuickAction(
-                      icon: Icons.send_outlined,
-                      label: 'Transfer',
-                      onTap: _handleTransfer,
-                    ),
-                    _buildQuickAction(
-                      icon: Icons.qr_code_scanner_outlined,
-                      label: 'Scan',
-                      onTap: () {},
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildQuickAction(
+                        icon: Icons.add_circle_outline,
+                        label: 'Top Up',
+                        onTap: _handleTopUp,
+                      ),
+                      _buildQuickAction(
+                        icon: Icons.send_outlined,
+                        label: 'Transfer',
+                        onTap: _handleTransfer,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          );
+        }
+        return const Center(child: CircularProgressIndicator());
+      },
     );
   }
 
@@ -267,8 +281,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       {'icon': Icons.send_outlined, 'label': 'Transfer', 'onTap': _handleTransfer},
       {'icon': Icons.receipt_long, 'label': 'Bills', 'onTap': () => _handleBills()},
       {'icon': Icons.card_giftcard, 'label': 'Vouchers', 'onTap': () => _showVouchers()},
-      {'icon': Icons.trending_up, 'label': 'Invest', 'onTap': () => _showInvestments()},
-      {'icon': Icons.qr_code_scanner_outlined, 'label': 'Scan', 'onTap': () {}},
+      {'icon': Icons.trending_up, 'label': 'Invest', 'onTap': () => _showInvestments()}
     ];
 
     return Container(
@@ -662,20 +675,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         }
 
         final currentBalance = (userDoc.data()?['balance'] ?? 0.0).toDouble();
-        
-        // Check for sufficient balance on deductions
-        if (amount < 0 && currentBalance + amount < 0) {
+        final newBalance = currentBalance + amount;
+
+        if (amount < 0 && newBalance < 0) {
           throw Exception('Insufficient balance');
         }
-
-        final newBalance = currentBalance + amount;
 
         // Update balance
         transaction.update(userRef, {
           'balance': newBalance,
         });
 
-        // Add transaction record
+        // Record transaction
         final transactionRef = userRef.collection('transactions').doc();
         transaction.set(transactionRef, {
           'amount': amount.abs(),
@@ -687,10 +698,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         });
       });
 
-      // Refresh local balance
+      // Refresh local balance after transaction
       await _loadUserData();
 
-      // Show success message
       _showSuccessSnackbar(
         amount > 0 
           ? 'Successfully added Rp ${amount.toStringAsFixed(0)}'
@@ -705,22 +715,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _handleTopUp() async {
     try {
-      final result = await Navigator.push<double>(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => IsiSaldoDetail(
             onBalanceUpdated: (amount) async {
               await _updateBalance(amount);
+              await _loadUserData(); // Refresh balance after top-up
               return true;
             },
           ),
         ),
       );
-
-      if (result != null) {
-        // Balance update is handled in the callback
-        await _loadUserData(); // Refresh UI after successful top up
-      }
     } catch (e) {
       _showErrorSnackbar('Top up failed: ${e.toString()}');
     }
@@ -728,13 +734,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _handleTransfer() async {
     try {
-      final result = await Navigator.push<double>(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => TransferDetail(
             onTransfer: (amount) async {
+              if (amount > _balance) {
+                throw Exception('Insufficient balance');
+              }
               await _updateBalance(-amount);
-              return true;
+              await _loadUserData(); // Refresh balance after transfer
+              return amount; // Return the transfer amount
             },
             currentBalance: _balance,
             recipientId: '',
@@ -742,11 +752,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         ),
       );
-
-      if (result != null) {
-        // Balance update is handled in the callback
-        await _loadUserData(); // Refresh UI after successful transfer
-      }
     } catch (e) {
       _showErrorSnackbar('Transfer failed: ${e.toString()}');
     }
