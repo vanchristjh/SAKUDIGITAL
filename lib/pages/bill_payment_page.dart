@@ -256,6 +256,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
         MaterialPageRoute(
           builder: (context) => PinScreen(
             title: 'Enter PIN to Confirm Payment',
+            amount: amount,
+            bank: widget.billType,
             onPinVerified: (pin) async {
               try {
                 await _firebaseService.processBillPayment(

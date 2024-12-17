@@ -8,7 +8,7 @@ class PinScreen extends StatefulWidget {
   const PinScreen({
     Key? key, 
     required this.onPinVerified,
-    this.title = 'Enter PIN',
+    this.title = 'Enter PIN', required double amount, required String bank,
   }) : super(key: key);
 
   @override

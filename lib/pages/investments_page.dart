@@ -94,6 +94,82 @@ class InvestmentsPage extends StatelessWidget {
     }
   }
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0E21),
+      appBar: AppBar(
+        title: const Text('Investments'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async => await Future.delayed(const Duration(seconds: 1)),
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInvestmentStats(),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Investment Options',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    InvestmentCard(
+                      title: 'Stocks',
+                      description: 'Invest in company shares\nMin. investment: Rp100,000',
+                      icon: Icons.trending_up,
+                      returnRate: '12-15% p.a.',
+                      onInvest: (amount) => _handleInvestment(context, 'Stocks', amount),
+                    ),
+                    InvestmentCard(
+                      title: 'Mutual Funds',
+                      description: 'Professionally managed investment funds\nMin. investment: Rp100,000',
+                      icon: Icons.account_balance,
+                      returnRate: '8-12% p.a.',
+                      onInvest: (amount) => _handleInvestment(context, 'Mutual Funds', amount),
+                    ),
+                    InvestmentCard(
+                      title: 'Bonds',
+                      description: 'Government and corporate bonds\nMin. investment: Rp100,000',
+                      icon: Icons.security,
+                      returnRate: '5-7% p.a.',
+                      onInvest: (amount) => _handleInvestment(context, 'Bonds', amount),
+                    ),
+                    const SizedBox(height: 24),
+                  ]),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: _buildInvestmentHistory(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildInvestmentStats() {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
@@ -110,26 +186,46 @@ class InvestmentsPage extends StatelessWidget {
         final totalReturns = userData?['investmentReturns'] ?? 0.0;
 
         return Container(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.blue[800]!, Colors.blue[900]!],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blue[900]!.withOpacity(0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 'Investment Portfolio',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 20),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildStatCard(
+                  _buildStatItem(
                     'Total Invested',
                     'Rp${totalInvested.toStringAsFixed(0)}',
-                    Icons.account_balance_wallet
+                    Icons.account_balance_wallet,
                   ),
-                  _buildStatCard(
+                  _buildStatItem(
                     'Total Returns',
                     'Rp${totalReturns.toStringAsFixed(0)}',
-                    Icons.trending_up
+                    Icons.trending_up,
                   ),
                 ],
               ),
@@ -140,73 +236,33 @@ class InvestmentsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon) {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+  Widget _buildStatItem(String title, String value, IconData icon) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Icon(icon, size: 32, color: Colors.blue),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontSize: 14)),
-            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Investments'),
-        backgroundColor: Colors.blue,
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async => await Future.delayed(const Duration(seconds: 1)),
-        child: ListView(
-          children: [
-            _buildInvestmentStats(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Investment Options',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  InvestmentCard(
-                    title: 'Stocks',
-                    description: 'Invest in company shares\nMin. investment: \$100',
-                    icon: Icons.trending_up,
-                    returnRate: '12-15% p.a.',
-                    onInvest: (amount) => _handleInvestment(context, 'Stocks', amount),
-                  ),
-                  InvestmentCard(
-                    title: 'Mutual Funds',
-                    description: 'Professionally managed investment funds\nMin. investment: \$100',
-                    icon: Icons.account_balance,
-                    returnRate: '8-12% p.a.',
-                    onInvest: (amount) => _handleInvestment(context, 'Mutual Funds', amount),
-                  ),
-                  InvestmentCard(
-                    title: 'Bonds',
-                    description: 'Government and corporate bonds\nMin. investment: \$100',
-                    icon: Icons.security,
-                    returnRate: '5-7% p.a.',
-                    onInvest: (amount) => _handleInvestment(context, 'Bonds', amount),
-                  ),
-                ],
+            Icon(icon, color: Colors.white70, size: 16),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
               ),
             ),
-            _buildInvestmentHistory(),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
@@ -391,47 +447,81 @@ class InvestmentCard extends StatelessWidget with InvestmentValidationMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16.0),
-      child: InkWell(
-        onTap: () => _showInvestmentDialog(context),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, size: 32, color: Colors.blue),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showInvestmentDialog(context),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, size: 24, color: Colors.blue),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(description),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            description,
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Returns: $returnRate',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Expected Returns: $returnRate',
-                style: const TextStyle(
-                  color: Colors.green,
-                  fontWeight: FontWeight.bold,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
