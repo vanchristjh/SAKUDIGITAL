@@ -2,13 +2,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:intl/intl.dart';
+import 'package:saku_digital/utils/error_handler.dart';
 import '../screens/pin_screen.dart';
 import '../services/firebase_service.dart';
 
 class BillPaymentPage extends StatefulWidget {
   final String billType;
+  final double userBalance;
 
-  const BillPaymentPage({required this.billType, Key? key}) : super(key: key);
+  const BillPaymentPage({
+    required this.billType,
+    required this.userBalance,
+    Key? key
+  }) : super(key: key);
 
   @override
   State<BillPaymentPage> createState() => _BillPaymentPageState();
@@ -22,70 +30,52 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
   bool _isLoading = false;
   Map<String, dynamic> _billDetails = {};
   bool _accountValid = false;
+  final _currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
 
-  Future<bool> _validateBillAccount(String accountNumber) async {
-    try {
-      final response = await _firebaseService.validateBillAccount(
-        billType: widget.billType,
-        accountNumber: accountNumber,
-      );
-      return response['isValid'] ?? false;
-    } catch (e) {
+  void _onAccountNumberChanged() {
+    // Simplify to just update UI
+    setState(() {
+      _accountValid = _accountController.text.length >= 8;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _accountController.addListener(_onAccountNumberChanged);
+  }
+
+  Future<bool> _validatePaymentDetails() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return false;
+
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null || amount <= 0) {
+      ErrorHandler.showError(context, 'Please enter a valid amount');
       return false;
     }
-  }
 
-  Future<Map<String, dynamic>> _getBillDetails() async {
-    if (_accountController.text.isEmpty) return {};
-
-    try {
-      setState(() => _isLoading = true);
-      final details = await _firebaseService.getBillDetails(
-        billType: widget.billType,
-        accountNumber: _accountController.text,
-      );
-      _amountController.text = details['amount']?.toString() ?? '';
-      return details;
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-      return {};
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _onAccountNumberChanged() async {
-    final accountNumber = _accountController.text;
-    if (accountNumber.length < 8) {
-      setState(() {
-        _accountValid = false;
-        _billDetails = {};
-      });
-      return;
+    if (amount > widget.userBalance) {
+      ErrorHandler.showError(context, 'Insufficient balance');
+      return false;
     }
 
+    if (_accountController.text.length < 8) {
+      ErrorHandler.showError(context, 'Account number must be at least 8 digits');
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _validateAndProcessPayment() async {
+    if (!await _validatePaymentDetails()) return;
+    
     try {
       setState(() => _isLoading = true);
-      
-      // First validate account
-      final validation = await _validateBillAccount(accountNumber);
-      _accountValid = validation;
-
-      if (_accountValid) {
-        // Then get bill details
-        _billDetails = await _getBillDetails();
-        if (_billDetails['amount'] != null) {
-          _amountController.text = _billDetails['amount'].toString();
-        }
-      }
+      final amount = double.parse(_amountController.text);
+      await _handlePaymentProcess(amount);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
+      ErrorHandler.showError(context, ErrorHandler.getReadableError(e.toString()));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -93,10 +83,92 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _accountController.addListener(_onAccountNumberChanged);
+  Future<void> _handlePaymentProcess(double amount) async {
+    if (!mounted) return;
+
+    try {
+      final success = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PinScreen(
+            title: 'Confirm Payment',
+            amount: amount,
+            bank: widget.billType,
+            onPinVerified: (pin) => _processPayment(amount, pin),
+          ),
+        ),
+      );
+
+      if (success == true && mounted) {
+        Navigator.pop(context, true); // Return to previous screen
+      }
+    } catch (e) {
+      ErrorHandler.showError(context, ErrorHandler.getReadableError(e.toString()));
+    }
+  }
+
+  Future<bool> _processPayment(double amount, String pin) async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      // Reference to user document
+      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+      // Run transaction
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final userDoc = await transaction.get(userRef);
+        
+        if (!userDoc.exists) {
+          throw Exception('User data not found');
+        }
+
+        final currentBalance = (userDoc.data()?['balance'] ?? 0.0).toDouble();
+        final newBalance = currentBalance - amount;
+
+        if (newBalance < 0) {
+          throw Exception('Insufficient balance');
+        }
+
+        // Update user balance
+        transaction.update(userRef, {'balance': newBalance});
+
+        // Record transaction
+        final transactionRef = userRef.collection('transactions').doc();
+        transaction.set(transactionRef, {
+          'type': 'Bill Payment',
+          'billType': widget.billType,
+          'accountNumber': _accountController.text,
+          'amount': amount,
+          'timestamp': FieldValue.serverTimestamp(),
+          'status': 'completed',
+          'balance_before': currentBalance,
+          'balance_after': newBalance,
+        });
+      });
+
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: 'Payment successful',
+          backgroundColor: Colors.green,
+          toastLength: Toast.LENGTH_LONG,
+        );
+      }
+      
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler.showError(context, ErrorHandler.getReadableError(e.toString()));
+      }
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -118,6 +190,14 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      'Available Balance: ${_currencyFormatter.format(widget.userBalance)}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     const Text(
                       'Enter Payment Details',
                       style: TextStyle(
@@ -155,6 +235,9 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
                             validator: (value) {
                               if (value?.isEmpty ?? true) {
                                 return 'Please enter account number';
+                              }
+                              if (value!.length < 8) {
+                                return 'Account number must be at least 8 digits';
                               }
                               return null;
                             },
@@ -202,7 +285,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: () => _handlePaymentConfirmation(double.parse(_amountController.text)),
+                        onPressed: _validateAndProcessPayment,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           shape: RoundedRectangleBorder(
@@ -233,66 +316,6 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _handlePaymentConfirmation(double amount) async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (!_accountValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid account number')),
-      );
-      return;
-    }
-
-    try {
-      setState(() => _isLoading = true);
-
-      if (_billDetails['amount'] != null && _billDetails['amount'] != amount) {
-        throw Exception('Amount does not match the bill');
-      }
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PinScreen(
-            title: 'Enter PIN to Confirm Payment',
-            amount: amount,
-            bank: widget.billType,
-            onPinVerified: (pin) async {
-              try {
-                await _firebaseService.processBillPayment(
-                  billType: widget.billType,
-                  accountNumber: _accountController.text,
-                  amount: amount,
-                  pin: pin,
-                );
-                
-                if (!mounted) return;
-                Navigator.pop(context); // Close PIN screen
-                Navigator.pop(context); // Close payment screen
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Payment Successful')),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                Navigator.pop(context);
-                throw e;
-              }
-            },
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
   }
 
   @override

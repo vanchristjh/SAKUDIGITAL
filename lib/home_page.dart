@@ -13,6 +13,7 @@ import 'package:saku_digital/pages/bills_page.dart';
 import 'package:saku_digital/pages/investments_page.dart';
 import 'package:saku_digital/pages/vouchers_page.dart';
 import 'package:saku_digital/pages/bill_payment_page.dart';
+import 'services/language_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -76,21 +77,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  String getText(String key) {
+    return LanguageService.getText(context, key);
+  }
+
   Widget _buildDashboard() {
     return Container(
       color: const Color(0xFF0A0E21),
       child: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildAppBar(),
-              _buildBalanceSection(),
-              _buildQuickActions(),
-              _buildPromoBanner(),
-              _buildCategories(),
-              _buildFavoriteContacts(),
-              _buildRecentActivity(),
-            ],
+        child: RefreshIndicator(
+          onRefresh: _loadUserData,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildAppBar(),
+                    const SizedBox(height: 8),
+                    _buildBalanceSection(),
+                    const SizedBox(height: 16),
+                    _buildQuickActions(),
+                    const SizedBox(height: 16),
+                    _buildPromoBanner(),
+                    const SizedBox(height: 16),
+                    _buildCategories(),
+                    const SizedBox(height: 16),
+                    _buildFavoriteContacts(),
+                    const SizedBox(height: 16),
+                    _buildRecentActivity(),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -98,70 +119,64 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildAppBar() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.white24,
-                child: StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(FirebaseAuth.instance.currentUser?.uid)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    String initial = (snapshot.data?.get('name') ?? 'U')[0];
-                    return Text(
-                      initial,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              StreamBuilder<DocumentSnapshot>(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.white24,
+              child: StreamBuilder<DocumentSnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('users')
                     .doc(FirebaseAuth.instance.currentUser?.uid)
                     .snapshots(),
                 builder: (context, snapshot) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hello,',
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        snapshot.data?.get('name') ?? 'User',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  String initial = (snapshot.data?.get('name') ?? 'U')[0];
+                  return Text(
+                    initial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   );
                 },
               ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
-      ),
+            ),
+            const SizedBox(width: 12),
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(FirebaseAuth.instance.currentUser?.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      getText('hello'),
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      snapshot.data?.get('name') ?? 'User',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+        // Add additional AppBar actions if needed
+      ],
     );
   }
 
@@ -172,108 +187,124 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return Transform.scale(
           scale: 0.95 + (_balanceAnimation.value * 0.05),
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Stack(
-              children: [
-                Container(
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.blue[800]!,
+                  Colors.blue[900]!,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue[900]!.withOpacity(0.5),
+                  blurRadius: 30,
+                  offset: const Offset(0, 15),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blue[800]!,
-                        Colors.blue[900]!,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue[900]!.withOpacity(0.5),
-                        blurRadius: 30,
-                        offset: const Offset(0, 15),
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            getText('totalBalance'),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.refresh,
+                                  color: Colors.white70,
+                                ),
+                                onPressed: () {
+                                  _loadUserData();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Refreshing balance...'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  _isBalanceVisible
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                  color: Colors.white70,
+                                ),
+                                onPressed: () => setState(() =>
+                                    _isBalanceVisible = !_isBalanceVisible),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 500),
+                        tween: Tween(begin: 0, end: 1),
+                        builder: (context, value, child) {
+                          return Opacity(
+                            opacity: value,
+                            child: Text(
+                              _isBalanceVisible
+                                  ? 'Rp ${_balance.toStringAsFixed(0)}'
+                                  : '• • • • •',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: Icons.add_circle_outline,
+                              label: getText('topUp'),
+                              onTap: _handleTopUp,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: Icons.send_outlined,
+                              label: getText('transfer'),
+                              onTap: _handleTransfer,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Total Balance',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    _isBalanceVisible 
-                                        ? Icons.visibility 
-                                        : Icons.visibility_off,
-                                    color: Colors.white70,
-                                  ),
-                                  onPressed: () => setState(() => 
-                                    _isBalanceVisible = !_isBalanceVisible
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            TweenAnimationBuilder<double>(
-                              duration: const Duration(milliseconds: 500),
-                              tween: Tween(begin: 0, end: 1),
-                              builder: (context, value, child) {
-                                return Opacity(
-                                  opacity: value,
-                                  child: Text(
-                                    _isBalanceVisible 
-                                        ? 'Rp ${_balance.toStringAsFixed(0)}' 
-                                        : '• • • • •',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 40,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _buildActionButton(
-                                  icon: Icons.add_circle_outline,
-                                  label: 'Top Up',
-                                  onTap: _handleTopUp,
-                                ),
-                                _buildActionButton(
-                                  icon: Icons.send_outlined,
-                                  label: 'Transfer',
-                                  onTap: _handleTransfer,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -289,22 +320,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       child: Material(
-        color: Colors.transparent,
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
+          splashColor: Colors.white24,
           child: Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 24,
               vertical: 12,
             ),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 1,
-              ),
             ),
             child: Row(
               children: [
@@ -606,7 +634,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BillPaymentPage(billType: category),
+        builder: (context) => BillPaymentPage(billType: category, userBalance: _balance),
       ),
     );
   }
@@ -772,24 +800,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         }
 
         // Update balance
-        transaction.update(userRef, {
-          'balance': newBalance,
-        });
+        transaction.update(userRef, {'balance': newBalance});
 
-        // Record transaction
-        final transactionRef = userRef.collection('transactions').doc();
-        transaction.set(transactionRef, {
-          'amount': amount.abs(),
-          'type': amount > 0 ? 'Top Up' : 'Transfer',
-          'timestamp': FieldValue.serverTimestamp(),
-          'balance_before': currentBalance,
-          'balance_after': newBalance,
-          'status': 'completed'
-        });
+        // Add transaction record
+        transaction.set(
+          userRef.collection('transactions').doc(),
+          {
+            'amount': amount.abs(),
+            'type': amount > 0 ? 'Top Up' : 'Transfer',
+            'timestamp': FieldValue.serverTimestamp(),
+            'balance_before': currentBalance,
+            'balance_after': newBalance,
+            'status': 'completed'
+          }
+        );
       });
 
-      // Refresh local balance after transaction
-      await _loadUserData();
+      // Update local balance state
+      setState(() {
+        _balance = (_balance + amount).toDouble();
+      });
 
       _showSuccessSnackbar(
         amount > 0 
@@ -833,8 +863,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 throw Exception('Insufficient balance');
               }
               await _updateBalance(-amount);
-              await _loadUserData(); // Refresh balance after transfer
-              return amount; // Return the transfer amount
             },
             currentBalance: _balance,
             recipientId: '',
@@ -988,27 +1016,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _buildDashboard(),
-          _buildTransactionList(),
-          const ProfileDetail(),
-        ],
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        child: IndexedStack(
+          key: ValueKey<int>(_currentIndex),
+          index: _currentIndex,
+          children: [
+            _buildDashboard(),
+            _buildTransactionList(),
+            const ProfileDetail(),
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          border: Border(
-            top: BorderSide(color: Colors.white.withOpacity(0.1)),
+          gradient: LinearGradient(
+            colors: [Color(0xFF1D1E33), Color(0xFF0A0E21)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 10,
+              offset: const Offset(0, -1),
+            ),
+          ],
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
           backgroundColor: Colors.transparent,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
+          selectedItemColor: Colors.white,
+          unselectedItemColor: Colors.white54,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),

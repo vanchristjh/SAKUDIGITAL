@@ -97,11 +97,20 @@ class InvestmentsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         title: const Text('Investments'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              // Handle settings action
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -124,6 +133,7 @@ class InvestmentsPage extends StatelessWidget {
                           color: Colors.white,
                         ),
                       ),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -189,14 +199,14 @@ class InvestmentsPage extends StatelessWidget {
           padding: const EdgeInsets.all(20.0),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.blue[800]!, Colors.blue[900]!],
+              colors: [Colors.purple[800]!, Colors.purple[900]!],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.blue[900]!.withOpacity(0.5),
+                color: Colors.purple[900]!.withOpacity(0.5),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -228,6 +238,12 @@ class InvestmentsPage extends StatelessWidget {
                     Icons.trending_up,
                   ),
                 ],
+              ),
+              const SizedBox(height: 20),
+              LinearProgressIndicator(
+                value: totalInvested / 1000000000, // Example progress
+                color: Colors.greenAccent,
+                backgroundColor: Colors.white24,
               ),
             ],
           ),
@@ -450,10 +466,14 @@ class InvestmentCard extends StatelessWidget with InvestmentValidationMixin {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        gradient: LinearGradient(
+          colors: [Colors.tealAccent.withOpacity(0.1), Colors.tealAccent.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.tealAccent.withOpacity(0.2),
         ),
       ),
       child: Material(
@@ -463,63 +483,41 @@ class InvestmentCard extends StatelessWidget with InvestmentValidationMixin {
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, size: 24, color: Colors.blue),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            description,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.tealAccent.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    'Returns: $returnRate',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Icon(icon, size: 24, color: Colors.teal),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
               ],
             ),
           ),

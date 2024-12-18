@@ -1,5 +1,13 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../models/voucher.dart';
+import '../services/voucher_service.dart';
+import 'voucher_details_sheet.dart';
+import 'voucher_history_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 class VouchersPage extends StatefulWidget {
   const VouchersPage({Key? key}) : super(key: key);
@@ -11,73 +19,174 @@ class VouchersPage extends StatefulWidget {
 class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   late TabController _tabController;
+  late VoucherService _voucherService;
   List<String> categories = ['All', 'Food', 'Shopping', 'Travel', 'Entertainment'];
   List<Voucher> vouchers = [];
   List<Voucher> filteredVouchers = [];
 
+  final Map<String, String> categoryBackgroundUrls = {
+    'Food': 'https://source.unsplash.com/random/800x600/?food',
+    'Shopping': 'https://source.unsplash.com/random/800x600/?shopping',
+    'Travel': 'https://source.unsplash.com/random/800x600/?travel',
+    'Entertainment': 'https://source.unsplash.com/random/800x600/?entertainment',
+  };
+
   @override
   void initState() {
     super.initState();
+    _initVoucherService();
     _tabController = TabController(length: categories.length, vsync: this);
-    _loadVouchers();
+  }
+
+  Future<void> _initVoucherService() async {
+    final prefs = await SharedPreferences.getInstance();
+    _voucherService = VoucherService(prefs);
+    await _loadVouchers();
   }
 
   Future<void> _loadVouchers() async {
-    // Simulate loading vouchers
-    setState(() {
-      vouchers = List.generate(
-        10,
-        (index) => Voucher(
-          id: 'VOUCHER$index',
-          category: categories[index % categories.length],
-          discountPercentage: (index + 1) * 5,
-          expiryDate: DateTime.now().add(Duration(days: 3 + index)),
-        ),
-      );
-      filteredVouchers = List.from(vouchers);
-    });
+    final loadedVouchers = await _voucherService.getVouchers();
+    if (loadedVouchers.isEmpty) {
+      await _voucherService.generateInitialVouchers();
+      final initialVouchers = await _voucherService.getVouchers();
+      setState(() {
+        vouchers = initialVouchers;
+        filteredVouchers = List.from(vouchers);
+      });
+    } else {
+      setState(() {
+        vouchers = loadedVouchers;
+        filteredVouchers = List.from(vouchers);
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'My Vouchers',
-          style: TextStyle(fontWeight: FontWeight.bold),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0A0E21), Color(0xFF1D1E33)],
+          ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: () => _showVoucherHistory(),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildCustomAppBar(),
+              _buildSearchBar(),
+              _buildCategoryTabs(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: categories.map((category) => 
+                    AnimationConfiguration.staggeredGrid(
+                      position: 0,
+                      duration: const Duration(milliseconds: 375),
+                      columnCount: 2,
+                      child: ScaleAnimation(
+                        child: FadeInAnimation(
+                          child: _buildVoucherGrid(category),
+                        ),
+                      ),
+                    )
+                  ).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomAppBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0A0E21), Color(0xFF1D1E33)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildSearchBar(),
-            _buildCategoryTabs(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: categories.map((category) => 
-                  _buildVoucherGrid(category)
-                ).toList(),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'My Vouchers',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'Find the best deals for you',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              _buildHistoryButton(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryButton() {
+    return GestureDetector(
+      onTap: () => _showVoucherHistory(),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: const Icon(
+          Icons.history,
+          color: Colors.white,
+          size: 24,
         ),
       ),
     );
   }
 
   Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.purple.withOpacity(0.2),
+            Colors.blue.withOpacity(0.2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
       child: TextField(
         controller: _searchController,
         style: const TextStyle(color: Colors.white),
@@ -85,21 +194,9 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
         decoration: InputDecoration(
           hintText: 'Search vouchers...',
           hintStyle: TextStyle(color: Colors.grey[400]),
-          prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-          filled: true,
-          fillColor: Colors.white.withOpacity(0.1),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: const BorderSide(color: Colors.blue),
-          ),
+          prefixIcon: const Icon(Icons.search, color: Colors.white70),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
       ),
     );
@@ -107,16 +204,35 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
 
   Widget _buildCategoryTabs() {
     return Container(
+      height: 50,
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: TabBar(
         controller: _tabController,
         isScrollable: true,
-        indicatorColor: Colors.blue,
+        indicatorSize: TabBarIndicatorSize.label,
+        indicatorColor: Colors.purple[200],
+        labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        unselectedLabelStyle: const TextStyle(fontSize: 14),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey,
         tabs: categories.map((category) => 
           Tab(
-            child: Text(
-              category,
-              style: const TextStyle(fontSize: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple.withOpacity(0.2),
+                    Colors.blue.withOpacity(0.2),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Center(child: Text(category)),
             ),
           ),
         ).toList(),
@@ -131,51 +247,123 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
 
     return categoryVouchers.isEmpty
         ? _buildEmptyState()
-        : GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.75,
+        : AnimationLimiter(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: categoryVouchers.length,
+              itemBuilder: (context, index) {
+                final voucher = categoryVouchers[index];
+                return AnimationConfiguration.staggeredGrid(
+                  position: index,
+                  duration: const Duration(milliseconds: 375),
+                  columnCount: 2,
+                  child: ScaleAnimation(
+                    child: FadeInAnimation(
+                      child: _buildVoucherCard(voucher),
+                    ),
+                  ),
+                );
+              },
             ),
-            itemCount: categoryVouchers.length,
-            itemBuilder: (context, index) => _buildVoucherCard(categoryVouchers[index]),
           );
   }
 
   Widget _buildVoucherCard(Voucher voucher) {
     return Hero(
       tag: voucher.id,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: voucher.isExpired ? null : () => _showVoucherDetails(voucher),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.blue[700]!,
-                  Colors.blue[900]!,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue[900]!.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
+      child: GestureDetector(
+        onTap: voucher.isExpired ? null : () => _showVoucherDetails(voucher),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                Colors.purple.withOpacity(0.2),
+                Colors.blue.withOpacity(0.2),
               ],
             ),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
             child: Stack(
               children: [
+                Positioned.fill(
+                  child: Image.network(
+                    categoryBackgroundUrls[voucher.category] ?? 
+                    'https://source.unsplash.com/random/800x600/?discount',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: _getCategoryColor(voucher.category),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withOpacity(0.2),
+                                  Colors.white.withOpacity(0.1),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(50),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 2,
+                              ),
+                            ),
+                            child: ShaderMask(
+                              shaderCallback: (bounds) => LinearGradient(
+                                colors: [Colors.white, Colors.white70],
+                              ).createShader(bounds),
+                              child: Icon(
+                                _getCategoryIcon(voucher.category),
+                                size: 48,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: _getCategoryColor(voucher.category),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / 
+                                  loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
                 if (voucher.isExpired || voucher.isUsed)
                   _buildOverlay(voucher),
-                _buildVoucherContent(voucher),
-                _buildExpiryBadge(voucher),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDiscountBadge(voucher),
+                      const Spacer(),
+                      _buildVoucherInfo(voucher),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -184,80 +372,81 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildVoucherContent(Voucher voucher) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              _getCategoryIcon(voucher.category),
-              size: 24,
-              color: Colors.white,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '${voucher.discountPercentage}% OFF',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            voucher.category,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'food':
+        return Colors.orange[700]!;
+      case 'shopping':
+        return Colors.purple[700]!;
+      case 'travel':
+        return Colors.blue[700]!;
+      case 'entertainment':
+        return Colors.red[700]!;
+      default:
+        return Colors.blue[900]!;
+    }
   }
 
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
       case 'food':
-        return Icons.restaurant;
+        return Icons.restaurant_menu;
       case 'shopping':
-        return Icons.shopping_bag;
+        return Icons.shopping_bag_outlined;
       case 'travel':
-        return Icons.flight;
+        return Icons.flight_takeoff;
       case 'entertainment':
-        return Icons.movie;
+        return Icons.theaters_outlined;
       default:
-        return Icons.card_giftcard;
+        return Icons.local_offer_outlined;
     }
   }
 
-  Widget _buildExpiryBadge(Voucher voucher) {
-    return Positioned(
-      top: 12,
-      right: 12,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(12),
+  Widget _buildDiscountBadge(Voucher voucher) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Text(
+        '${voucher.discountPercentage}% OFF',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
         ),
-        child: Text(
-          'Valid until: ${voucher.expiryDate.toString().split(' ')[0]}',
+      ),
+    );
+  }
+
+  Widget _buildVoucherInfo(Voucher voucher) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          voucher.category,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(
+          'Valid until: ${voucher.expiryDate.toString().split(' ')[0]}',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 
@@ -285,7 +474,39 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.card_giftcard, size: 64, color: Colors.grey[600]),
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.purple.withOpacity(0.3),
+                  Colors.blue.withOpacity(0.3),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                colors: [Colors.grey[400]!, Colors.grey[600]!],
+              ).createShader(bounds),
+              child: const Icon(
+                Icons.card_giftcard,
+                size: 64,
+                color: Colors.white,
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           Text(
             'No vouchers found',
@@ -302,13 +523,27 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
   void _showVoucherDetails(Voucher voucher) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => VoucherDetailsSheet(voucher: voucher),
+      builder: (context) => VoucherDetailsSheet(
+        voucher: voucher,
+        onUseVoucher: (voucher) async {
+          await _voucherService.useVoucher(voucher.id);
+          await _loadVouchers(); // Reload vouchers after using one
+        },
+      ),
     );
   }
 
   void _showVoucherHistory() {
-    // Implement voucher usage history
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VoucherHistoryPage(
+          usedVouchers: _voucherService.getUsedVouchers(vouchers),
+        ),
+      ),
+    );
   }
 
   void _filterVouchers(String query) {
@@ -321,80 +556,30 @@ class _VouchersPageState extends State<VouchersPage> with SingleTickerProviderSt
   }
 }
 
-class VoucherDetailsSheet extends StatelessWidget {
-  final Voucher voucher;
+class PatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..strokeWidth = 1;
 
-  const VoucherDetailsSheet({Key? key, required this.voucher}) : super(key: key);
+    for (var i = 0; i < size.width; i += 20) {
+      canvas.drawLine(
+        Offset(i.toDouble(), 0),
+        Offset(i.toDouble(), size.height),
+        paint,
+      );
+    }
+
+    for (var i = 0; i < size.height; i += 20) {
+      canvas.drawLine(
+        Offset(0, i.toDouble()),
+        Offset(size.width, i.toDouble()),
+        paint,
+      );
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F35),
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[600],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Discount ${voucher.discountPercentage}%',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Terms and conditions apply',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: const Text('Use Voucher'),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Valid until: ${voucher.expiryDate.toString().split(' ')[0]}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

@@ -197,7 +197,7 @@ class FirebaseService {
     required String pin,
     required double amount,
     required String description,
-    required bool isDebit,
+    required bool isDebit, required double fee,
   }) async {
     try {
       final validation = await validatePIN(
@@ -674,6 +674,70 @@ class FirebaseService {
       rethrow;
     }
   }
+
+  Future<double> getUserBalance() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      return (doc.data()?['balance'] ?? 0.0).toDouble();
+    } catch (e) {
+      throw 'Failed to get balance: $e';
+    }
+  }
+
+  Future<void> processBillPaymentTransaction({
+    required String billType,
+    required String accountNumber,
+    required double amount,
+    required String pin,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw 'User not authenticated';
+
+    // Get user document reference
+    final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+    // Start transaction
+    return FirebaseFirestore.instance.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userDoc);
+      
+      if (!userSnapshot.exists) {
+        throw 'User document not found';
+      }
+
+      final currentBalance = userSnapshot.data()?['balance'] ?? 0.0;
+      if (currentBalance < amount) {
+        throw 'Insufficient balance';
+      }
+
+      // Update balance
+      final newBalance = currentBalance - amount;
+      transaction.update(userDoc, {'balance': newBalance});
+
+      // Create transaction record
+      final transactionRef = FirebaseFirestore.instance
+          .collection('transactions')
+          .doc();
+
+      transaction.set(transactionRef, {
+        'userId': user.uid,
+        'type': 'BILL_PAYMENT',
+        'billType': billType,
+        'accountNumber': accountNumber,
+        'amount': amount,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'SUCCESS'
+      });
+    });
+  }
+
+  updateBalance(double amount) {}
 }
 
 class TransactionData {
@@ -689,4 +753,8 @@ class TransactionData {
       type = doc['type'] ?? 'unknown',
       description = doc['description'] ?? '',
       timestamp = (doc['timestamp'] as Timestamp).toDate();
+
+  get balance_before => null;
+
+  get balance_after => null;
 }

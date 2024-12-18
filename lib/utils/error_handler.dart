@@ -1,38 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class ErrorHandler {
   static void showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Dismiss',
-          onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
-          textColor: Colors.white,
-        ),
-      ),
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_LONG,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
     );
   }
 
   static String getReadableError(String error) {
-    final errorMessages = {
-      'permission-denied': 'You don\'t have permission for this action',
-      'insufficient-balance': 'Insufficient balance',
-      'invalid-amount': 'Please enter a valid amount',
-      'network-error': 'Connection error. Please check your internet',
-      'invalid-account': 'Account number is invalid',
-      'user-not-found': 'User not found',
-      'invalid-pin': 'Invalid PIN',
-    };
-
-    for (var entry in errorMessages.entries) {
-      if (error.toLowerCase().contains(entry.key)) {
-        return entry.value;
-      }
+    if (error.contains('Insufficient balance')) {
+      return 'Your balance is not enough for this transaction';
     }
-    return error.replaceAll(RegExp(r'Exception:|Error:'), '').trim();
+    if (error.contains('Invalid account')) {
+      return 'Please check the account number';
+    }
+    if (error.contains('User not authenticated')) {
+      return 'Please login again';
+    }
+    return 'An error occurred. Please try again.';
   }
 }

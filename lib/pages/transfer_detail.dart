@@ -49,20 +49,34 @@ class _TransferDetailState extends State<TransferDetail> {
     }
   }
 
-  Future<void> _searchRecipient(String accountNumber) async {
-    if (accountNumber.length < 5) return;
+  Future<void> _searchRecipient(String email) async {
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) return;
     
     try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) throw 'User not authenticated';
+
+      final senderDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+      final senderEmail = senderDoc.data()?['email'] as String? ?? '';
+
       final recipientSnapshot = await _firestore
           .collection('users')
-          .where('accountNumber', isEqualTo: accountNumber)
+          .where('email', isEqualTo: email)
           .limit(1)
           .get();
 
       if (recipientSnapshot.docs.isNotEmpty) {
-        setState(() {
-          _recipientName = recipientSnapshot.docs.first.data()['name'];
-        });
+        final recipientData = recipientSnapshot.docs.first.data();
+        if (recipientData['email'] == senderEmail) {
+          setState(() {
+            _recipientName = null;
+          });
+          // Optionally, show a message that users cannot transfer to themselves
+        } else {
+          setState(() {
+            _recipientName = recipientData['name'];
+          });
+        }
       } else {
         setState(() {
           _recipientName = null;
@@ -80,44 +94,66 @@ class _TransferDetailState extends State<TransferDetail> {
     if (currentUser == null) throw 'User not authenticated';
 
     final senderDoc = await _firestore.collection('users').doc(currentUser.uid).get();
-    if (!senderDoc.exists) throw 'Sender account not found';
+    final senderEmail = senderDoc.data()?['email'] as String? ?? '';
 
-    final senderBalance = (senderDoc.data()?['balance'] ?? 0.0) as double;
-    if (senderBalance < amount) throw 'Insufficient balance';
-
-    // Verify recipient exists
-    final recipientSnapshot = await _firestore
+    final recipientDocs = await _firestore
         .collection('users')
-        .where('accountNumber', isEqualTo: _recipientController.text)
+        .where('email', isEqualTo: _recipientController.text)
         .limit(1)
         .get();
 
-    if (recipientSnapshot.docs.isEmpty) throw 'Recipient account not found';
-    final recipientDoc = recipientSnapshot.docs.first;
+    if (!senderDoc.exists) throw 'Sender account not found';
+    if (recipientDocs.docs.isEmpty) throw 'Recipient account not found';
+
+    final recipientDoc = recipientDocs.docs.first;
+    final recipientEmail = recipientDoc.data()['email'] as String? ?? '';
+
+    if (recipientEmail == senderEmail) {
+      throw 'Cannot transfer to your own email';
+    }
+
+    final senderBalance = (senderDoc.data()?['balance'] ?? 0.0) as double;
+    
+    if (senderBalance < amount) throw 'Insufficient balance';
 
     // Start transaction
     return _firestore.runTransaction((transaction) async {
-      // Update sender balance
+      // Update sender's balance and add transaction record
       transaction.update(senderDoc.reference, {
         'balance': senderBalance - amount,
-        'transactions': FieldValue.arrayUnion([{
+      });
+
+      transaction.set(
+        senderDoc.reference.collection('transactions').doc(),
+        {
           'type': 'transfer_out',
           'amount': amount,
           'description': description,
+          'recipient': recipientDoc.id,
           'timestamp': FieldValue.serverTimestamp(),
-        }])
+          'balance_before': senderBalance,
+          'balance_after': senderBalance - amount,
+        }
+      );
+
+      // Update recipient's balance and add transaction record
+      final recipientBalance = (recipientDoc.data()['balance'] ?? 0.0) as double;
+      transaction.update(recipientDoc.reference, {
+        'balance': recipientBalance + amount,
       });
 
-      // Update recipient balance
-      transaction.update(recipientDoc.reference, {
-        'balance': (recipientDoc.data()['balance'] ?? 0.0) + amount,
-        'transactions': FieldValue.arrayUnion([{
+      transaction.set(
+        recipientDoc.reference.collection('transactions').doc(),
+        {
           'type': 'transfer_in',
           'amount': amount,
-          'description': 'Transfer from ${senderDoc.data()?['accountNumber']}',
+          'description': 'Transfer from ${senderEmail}',
+          'sender': currentUser.uid,
           'timestamp': FieldValue.serverTimestamp(),
-        }])
-      });
+          'balance_before': recipientBalance,
+          'balance_after': recipientBalance + amount,
+        }
+      );
     });
   }
 
@@ -152,7 +188,6 @@ class _TransferDetailState extends State<TransferDetail> {
               
               if (!mounted) return;
               Navigator.pop(context); // Close PIN screen
-              Navigator.pop(context); // Close transfer screen
               widget.onTransfer(amount); // Notify parent about the transfer
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Transfer successful')),
@@ -171,6 +206,19 @@ class _TransferDetailState extends State<TransferDetail> {
         ),
       ),
     );
+  }
+
+  String? _validateRecipient(String? value) {
+    if (value?.isEmpty ?? true) {
+      return 'Please enter recipient email';
+    }
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!)) {
+      return 'Please enter a valid email address';
+    }
+    if (_recipientName == null) {
+      return 'Invalid or same email address';
+    }
+    return null;
   }
 
   @override
@@ -192,41 +240,40 @@ class _TransferDetailState extends State<TransferDetail> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Recipient Email Card
                       Card(
                         color: AppTheme.cardColor,
                         elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Recipient Account',
+                                'Recipient Email',
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: Colors.grey,
                                 ),
                               ),
+                              const SizedBox(height: 8),
                               TextFormField(
                                 controller: _recipientController,
                                 style: const TextStyle(color: Colors.white, fontSize: 18),
                                 decoration: InputDecoration(
-                                  hintText: 'Enter account number',
-                                  border: InputBorder.none,
+                                  hintText: 'Enter recipient email',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                   suffixIcon: _recipientName != null
                                       ? const Icon(Icons.check_circle, color: Colors.green)
                                       : null,
                                 ),
                                 onChanged: _searchRecipient,
-                                validator: (value) {
-                                  if (value?.isEmpty ?? true) {
-                                    return 'Please enter recipient account';
-                                  }
-                                  if (_recipientName == null) {
-                                    return 'Invalid account number';
-                                  }
-                                  return null;
-                                },
+                                validator: _validateRecipient,
                               ),
                               if (_recipientName != null)
                                 Padding(
@@ -244,9 +291,13 @@ class _TransferDetailState extends State<TransferDetail> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      // Amount Card
                       Card(
                         color: AppTheme.cardColor,
                         elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -259,6 +310,7 @@ class _TransferDetailState extends State<TransferDetail> {
                                   color: Colors.grey,
                                 ),
                               ),
+                              const SizedBox(height: 8),
                               TextFormField(
                                 controller: _amountController,
                                 keyboardType: TextInputType.number,
@@ -267,8 +319,10 @@ class _TransferDetailState extends State<TransferDetail> {
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                 ),
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                                 validator: (value) {
                                   if (value?.isEmpty ?? true) {
@@ -288,9 +342,13 @@ class _TransferDetailState extends State<TransferDetail> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      // Description Card
                       Card(
                         color: AppTheme.cardColor,
                         elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -303,12 +361,15 @@ class _TransferDetailState extends State<TransferDetail> {
                                   color: Colors.grey,
                                 ),
                               ),
+                              const SizedBox(height: 8),
                               TextFormField(
                                 controller: _descriptionController,
                                 style: const TextStyle(color: Colors.white),
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   hintText: 'Enter transfer description',
-                                  border: InputBorder.none,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                                 maxLines: 2,
                               ),
