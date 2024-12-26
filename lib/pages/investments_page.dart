@@ -103,14 +103,6 @@ class InvestmentsPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // Handle settings action
-            },
-          ),
-        ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
